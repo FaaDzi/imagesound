@@ -21,7 +21,7 @@ def get_library():
     with get_connection() as conn:
         rows = conn.execute(
             """SELECT id, input_type, prompt, duration, saved, expires_at, created_at,
-                      output_format, source_file_id
+                      output_format, source_file_id, fad_verdict
                  FROM files
                 WHERE job_status = 'done'
                   AND expires_at > ?
@@ -40,6 +40,7 @@ def get_library():
             "created_at":     row["created_at"],
             "output_format":  row["output_format"],
             "source_file_id": row["source_file_id"],
+            "fad_verdict":    row["fad_verdict"],
         }
         for row in rows
     ]
