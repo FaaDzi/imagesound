@@ -76,32 +76,7 @@ from fadtk.fad_batch import cache_embedding_files
 # across runs for songs you check more than once.
 CACHE_DIR = Path(__file__).resolve().parent / ".fad_eval"
 
-# (ceiling, keywords) -- prompt is lowercased before matching. Order matters:
-# first bucket whose keyword appears wins, so more specific buckets go first.
-GENRE_BUCKETS = {
-    "dense": (150, [
-        "edm", "rock", "rhythm game", "psytrance", "techno", "dance", "electro",
-        "dubstep", "drum and bass", "dnb", "hardstyle", "trance", "house",
-        "metal", "punk", "hyperpop", "synth lead", "high-energy", "high energy",
-    ]),
-    "jazz": (170, [
-        "jazz", "piano", "clapping", "drums", "funk", "soul", "swing", "blues",
-        "big band", "hot coffee",
-    ]),
-    "ambient": (300, [
-        "ambient", "drone", "serene", "calm", "meditative", "soundscape",
-        "koto", "atmospheric", "pad", "lofi", "lo-fi",
-    ]),
-}
-DEFAULT_CEILING = 200  # unclassified prompt -- moderate fallback, flagged as such
-
-
-def classify_genre(prompt: str) -> tuple[str, float]:
-    p = prompt.lower()
-    for bucket, (ceiling, keywords) in GENRE_BUCKETS.items():
-        if any(kw in p for kw in keywords):
-            return bucket, ceiling
-    return "unclassified", DEFAULT_CEILING
+from fad_common import GENRE_BUCKETS, DEFAULT_CEILING, classify_genre
 
 
 def _stage(target: Path) -> None:
