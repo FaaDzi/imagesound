@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Trash2, Music, Database, Play, Pause, Download, Save, FileMusic, Shuffle } from 'lucide-react';
+import { Trash2, Music, Database, Play, Pause, Download, Save, FileMusic, Shuffle, Check, AlertTriangle } from 'lucide-react';
 import { getLibrary, discardJob, saveJob, audioUrl, imageUrl, downloadSong, convertToMidi, downloadMidi, midiPreviewUrl, LibraryItem, DOWNLOAD_FORMATS, DownloadFormat } from '../api';
 
 function formatTimeRemaining(expiresAt: string): string {
@@ -319,6 +319,12 @@ export function Library() {
                       <span className="text-[10px] uppercase tracking-wider opacity-50" style={{ color: 'var(--text-muted)' }}>
                         {isMidi ? 'BASIC PITCH' : item.input_type.toUpperCase()}
                       </span>
+                      {!isMidi && item.fad_verdict === 'satisfactory' && (
+                        <Check size={12} style={{ color: 'var(--accent)' }} aria-label="Quality check: satisfactory" />
+                      )}
+                      {!isMidi && item.fad_verdict === 'unsatisfactory' && (
+                        <AlertTriangle size={12} style={{ color: 'var(--accent-secondary)' }} aria-label="Quality check: unsatisfactory" />
+                      )}
                     </div>
                   </div>
                 </div>
