@@ -13,6 +13,7 @@ Prints exactly one JSON line to stdout and sets the exit code accordingly:
     {"error": "<description>"}                                       (exit 1)
 """
 import argparse
+import contextlib
 import json
 import os
 import shutil
@@ -53,6 +54,31 @@ from fadtk.fad_batch import cache_embedding_files
 from fad_common import classify_genre
 
 
+@contextlib.contextmanager
+def _suppress_stdout():
+    """Redirect the OS-level stdout file descriptor to devnull for the
+    duration of the block, restoring it afterward. fadtk does bare print()
+    calls internally (e.g. FrechetAudioDistance.load_stats' print(stats),
+    and enforce_min_len's blank-line print inside a multiprocessing worker
+    spawned by cache_embedding_files) that would otherwise land on stdout
+    alongside this script's own JSON output. Python-level
+    contextlib.redirect_stdout would not reach the worker-process print,
+    since a spawned process inherits the OS file descriptor at spawn time,
+    not the parent's reassigned sys.stdout object -- so this redirects the
+    actual OS fd instead.
+    """
+    stdout_fd = 1
+    saved_fd = os.dup(stdout_fd)
+    devnull_fd = os.open(os.devnull, os.O_WRONLY)
+    try:
+        os.dup2(devnull_fd, stdout_fd)
+        yield
+    finally:
+        os.dup2(saved_fd, stdout_fd)
+        os.close(devnull_fd)
+        os.close(saved_fd)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("wav_path")
@@ -75,21 +101,22 @@ def main() -> int:
             except OSError:
                 shutil.copy2(wav_path, staged)
 
-            model = EncodecEmbModel("24k")
-            cache_embedding_files(eval_dir, model, workers=1)
+            with _suppress_stdout():
+                model = EncodecEmbModel("24k")
+                cache_embedding_files(eval_dir, model, workers=1)
 
-            fad = FrechetAudioDistance(model, audio_load_worker=1, load_model=False)
-            csv_out = eval_dir / "scores.csv"
-            fad.score_individual("fma_pop", eval_dir, csv_out)
+                fad = FrechetAudioDistance(model, audio_load_worker=1, load_model=False)
+                csv_out = eval_dir / "scores.csv"
+                fad.score_individual("fma_pop", eval_dir, csv_out)
 
-            score = None
-            for line in csv_out.read_text().splitlines():
-                if not line.strip():
-                    continue
-                path_str, score_str = line.rsplit(",", 1)
-                if Path(path_str).name == staged.name:
-                    score = float(score_str)
-                    break
+                score = None
+                for line in csv_out.read_text().splitlines():
+                    if not line.strip():
+                        continue
+                    path_str, score_str = line.rsplit(",", 1)
+                    if Path(path_str).name == staged.name:
+                        score = float(score_str)
+                        break
 
             if score is None:
                 print(json.dumps({"error": "no score produced"}))
