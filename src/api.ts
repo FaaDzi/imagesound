@@ -111,6 +111,7 @@ export interface LibraryItem {
   created_at: string;
   output_format: string | null;    // 'midi' for MIDI entries, null for audio entries
   source_file_id: string | null;   // for MIDI entries: the audio entry this was derived from
+  fad_verdict: 'satisfactory' | 'unsatisfactory' | null;  // quality signal; null = not scored (pre-feature song, MIDI entry, or scoring failed)
 }
 
 export async function getLibrary(): Promise<LibraryItem[]> {
