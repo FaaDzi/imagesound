@@ -42,6 +42,8 @@ def _migrate_db(conn: sqlite3.Connection) -> None:
     for stmt in [
         "ALTER TABLE files ADD COLUMN saved INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE files ADD COLUMN source_file_id TEXT",
+        "ALTER TABLE files ADD COLUMN fad_score REAL",
+        "ALTER TABLE files ADD COLUMN fad_verdict TEXT",
     ]:
         try:
             conn.execute(stmt)
