@@ -6,9 +6,11 @@ pipeline, moves the output WAV into storage/converted, and writes the
 result back to the database.  Exceptions never crash the worker loop.
 """
 
+import json
 import logging
 import queue
 import shutil
+import subprocess
 import sys
 import threading
 import time
@@ -25,6 +27,29 @@ log = logging.getLogger(__name__)
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
+
+def _score_song(wav_path: Path, prompt: str | None) -> tuple[float | None, str | None]:
+    """Score a finished song for quality via the isolated .venv-fad environment.
+
+    Returns (score, verdict) -- both None if scoring failed for any reason.
+    Must never raise: a scoring failure must never fail the generation job.
+    """
+    venv_python = _PROJECT_ROOT / ".venv-fad" / "Scripts" / "python.exe"
+    script = _PROJECT_ROOT / "fad_score_one.py"
+    try:
+        result = subprocess.run(
+            [str(venv_python), str(script), str(wav_path), "--prompt", prompt or ""],
+            capture_output=True, text=True, timeout=90,
+        )
+        data = json.loads(result.stdout.strip().splitlines()[-1])
+        if "error" in data:
+            log.warning("[jobs] FAD scoring failed for %s: %s", wav_path.name, data["error"])
+            return None, None
+        return data["score"], data["verdict"]
+    except Exception:
+        log.exception("[jobs] FAD scoring crashed for %s", wav_path.name)
+        return None, None
+
 
 _queue: queue.Queue = queue.Queue()
 
@@ -237,14 +262,17 @@ def _run_worker() -> None:
             shutil.move(str(wav_path), str(dest))
             converted_key = dest.name
 
+            fad_score, fad_verdict = _score_song(dest, prompt_used)
+
             conn.execute(
                 """UPDATE files
-                      SET job_status='done', converted_key=?, prompt=?, duration=?
+                      SET job_status='done', converted_key=?, prompt=?, duration=?,
+                          fad_score=?, fad_verdict=?
                     WHERE id=?""",
-                (converted_key, prompt_used, float(job.duration), job.file_id),
+                (converted_key, prompt_used, float(job.duration), fad_score, fad_verdict, job.file_id),
             )
             conn.commit()
-            log.info("[jobs] Job %s done -> %s", job.file_id, converted_key)
+            log.info("[jobs] Job %s done -> %s (fad_verdict=%s)", job.file_id, converted_key, fad_verdict)
 
         except Exception:
             log.exception("[worker] job %s FAILED — exception caught, worker will continue", job.file_id)
