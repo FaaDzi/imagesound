@@ -1,0 +1,5 @@
+sample_images/
+.venv/
+venv/
+__pycache__/
+*.pyc

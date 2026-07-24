@@ -1,0 +1,22 @@
+# Environment
+.env*
+!.env.example
+
+# Database
+*.db
+
+# Storage contents — keep folders tracked via .gitkeep, ignore actual files
+storage/originals/*
+storage/converted/*
+storage/temp/*
+!storage/originals/.gitkeep
+!storage/converted/.gitkeep
+!storage/temp/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/

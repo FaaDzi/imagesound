@@ -1,0 +1,6 @@
+{
+  "name": "Imagesound",
+  "description": "Brutalist Cyberpunk browser-based audio converter and image-to-sound synthesizer.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,217 @@
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Geist+Mono:wght@100..900&display=swap');
+@import "tailwindcss";
+
+:root, body.dark {
+  --bg: #0a0a0a;
+  --bg-card: #111111;
+  --input-bg: #0a0a0a;
+  --text-primary: #ffffff;
+  --text-muted: #888888;
+  --text-heading: #ffffff;
+  --accent: #39ff14;
+  --accent-secondary: #ff2d78;
+  --accent-tertiary: #0ff;
+  --border: #39ff14;
+  --border-muted: #888888;
+  --selected-bg: #39ff14;
+  --selected-text: #000000;
+  
+  --theme-font-ui: 'Geist Mono', monospace;
+  --theme-grid-opacity: 0.2;
+}
+
+body.light {
+  --bg: #ffffff;
+  --bg-card: #f1f5f9;
+  --input-bg: #ffffff;
+  --text-primary: #0f0f0f;
+  --text-muted: #64748b;
+  --text-heading: #0f0f0f;
+  --accent: #2563eb;
+  --accent-secondary: #f97316;
+  --accent-tertiary: #2563eb;
+  --border: #cbd5e1;
+  --border-muted: #cbd5e1;
+  --selected-bg: #2563eb;
+  --selected-text: #ffffff;
+
+  --theme-font-ui: 'Geist Mono', monospace;
+  --theme-grid-opacity: 0;
+} 
+
+@theme {
+  --font-mono: 'Geist Mono', monospace;
+  --font-display: 'Syne', sans-serif;
+  --font-ui: 'Geist Mono', monospace;
+  
+  --color-neon-green: var(--accent);
+  --color-neon-pink: var(--accent-secondary);
+  --color-neon-blue: var(--accent-tertiary);
+  --color-cyber-black: var(--bg);
+  --color-cyber-gray: var(--bg-card);
+  --color-heading: var(--text-heading);
+  --color-muted: var(--text-muted);
+  --color-border-muted: var(--border-muted);
+  --color-selected-bg: var(--selected-bg);
+  --color-selected-text: var(--selected-text);
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--accent);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: none;
+}
+
+/* Hard borders and raw aesthetics */
+* {
+  --tw-border-opacity: 1;
+}
+
+::selection {
+  background: var(--selected-bg);
+  color: var(--selected-text);
+}
+
+/* Glitch effect styles */
+.glitch {
+  position: relative;
+  display: inline-block;
+}
+.glitch::before, .glitch::after {
+  content: attr(data-text);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--bg);
+}
+.glitch::before {
+  left: 2px;
+  text-shadow: -2px 0 var(--accent-secondary);
+  clip: rect(24px, 550px, 90px, 0);
+  animation: glitch-anim-2 3s infinite linear alternate-reverse;
+}
+.glitch::after {
+  left: -2px;
+  text-shadow: -2px 0 var(--accent-tertiary);
+  clip: rect(85px, 550px, 140px, 0);
+  animation: glitch-anim 2.5s infinite linear alternate-reverse;
+}
+@keyframes glitch-anim {
+  0% { clip: rect(10px, 9999px, 83px, 0); }
+  20% { clip: rect(61px, 9999px, 12px, 0); }
+  40% { clip: rect(41px, 9999px, 5px, 0); }
+  60% { clip: rect(98px, 9999px, 14px, 0); }
+  80% { clip: rect(72px, 9999px, 99px, 0); }
+  100% { clip: rect(26px, 9999px, 34px, 0); }
+}
+@keyframes glitch-anim-2 {
+  0% { clip: rect(23px, 9999px, 12px, 0); }
+  20% { clip: rect(81px, 9999px, 93px, 0); }
+  40% { clip: rect(11px, 9999px, 45px, 0); }
+  60% { clip: rect(6px, 9999px, 21px, 0); }
+  80% { clip: rect(94px, 9999px, 81px, 0); }
+  100% { clip: rect(65px, 9999px, 11px, 0); }
+}
+
+/* Brutalist Scrollbar */
+::-webkit-scrollbar {
+  width: 14px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg);
+  border-left: 2px solid var(--accent);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--accent);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-secondary);
+}
+
+.brutal-btn {
+  @apply border-2 px-4 py-2 uppercase font-bold transition-none active:translate-y-1 active:translate-x-1;
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 4px 4px 0 0 var(--accent);
+}
+
+.brutal-btn:hover {
+  background-color: var(--accent);
+  color: var(--selected-text);
+  box-shadow: 2px 2px 0 0 var(--accent);
+}
+.brutal-btn:active {
+  box-shadow: 0px 0px 0 0 var(--accent);
+}
+
+.brutal-btn-pink {
+  @apply border-2 px-4 py-2 uppercase font-bold transition-none active:translate-y-1 active:translate-x-1;
+  border-color: var(--accent-secondary);
+  color: var(--accent-secondary);
+  box-shadow: 4px 4px 0 0 var(--accent-secondary);
+}
+
+.brutal-btn-pink:hover {
+  background-color: var(--accent-secondary);
+  color: var(--selected-text);
+  box-shadow: 2px 2px 0 0 var(--accent-secondary);
+}
+.brutal-btn-pink:active {
+  box-shadow: 0px 0px 0 0 var(--accent-secondary);
+}
+
+.brutal-input {
+  @apply border-2 p-2 outline-none;
+  border-color: var(--accent);
+  color: var(--accent);
+  background-color: var(--input-bg);
+  box-shadow: none;
+}
+.brutal-input:focus {
+  border-color: var(--accent-secondary);
+  box-shadow: 0 0 10px var(--accent-secondary);
+}
+
+.brutal-card {
+  @apply border-2 p-4;
+  border-color: var(--accent);
+  background-color: var(--bg-card);
+  box-shadow: -4px 4px 0 0 var(--accent-tertiary);
+}
+
+body.light .brutal-card {
+  background-color: var(--bg-card);
+  border-color: var(--border);
+  box-shadow: -4px 4px 0 0 var(--accent-tertiary);
+}
+
+body.light .brutal-btn {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 4px 4px 0 0 var(--accent);
+}
+
+body.light .brutal-btn:hover {
+  background-color: var(--accent);
+  color: var(--selected-text);
+}
+
+body.light .brutal-btn-pink {
+  border-color: var(--accent-secondary);
+  color: var(--accent-secondary);
+  box-shadow: 4px 4px 0 0 var(--accent-secondary);
+}
+
+body.light .brutal-btn-pink:hover {
+  background-color: var(--accent-secondary);
+  color: var(--selected-text);
+}
+
+body.light .brutal-input {
+  border-color: var(--border);
+  color: var(--text-primary);
+  background-color: var(--input-bg);
+}

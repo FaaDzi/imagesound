@@ -1,0 +1,17 @@
+# Phase E pipeline — needs BOTH the MusicGen and Gemini dependency sets.
+#
+# RECOMMENDED: reuse the musicgen_test venv and add the missing packages:
+#
+#   Activate the musicgen_test venv, then:
+#     pip install google-genai>=2.0.0 Pillow>=10.0.0
+#
+# If starting fresh, install torch WITH CUDA first (see musicgen_test/requirements.txt),
+# then install the rest:
+#
+#   pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
+#   pip install -r pipeline/requirements.txt
+
+audiocraft>=1.3.0
+google-genai>=2.0.0
+python-dotenv>=1.0.0
+Pillow>=10.0.0

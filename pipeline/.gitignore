@@ -1,0 +1,9 @@
+output/*.wav
+output/*.mp3
+output/embeddings/
+output/convert/
+output/fad_scores.csv
+.venv/
+venv/
+__pycache__/
+*.pyc

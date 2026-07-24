@@ -1,0 +1,367 @@
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Geist+Mono:wght@100..900&display=swap');
+@import "tailwindcss";
+
+:root, body.dark {
+  /* Hallmark · design-system: design.md · designed-as-app
+     Was flat zero-chroma #0a0a0a/#111111 (the banned "flat grey") — now
+     tinted toward the accent hue (~145deg) at low chroma. --accent itself
+     is preserved exactly; --accent-secondary/--accent-tertiary are dimmed
+     from full-brightness decoration into distinct semantic roles (warning,
+     informational) instead of three co-equal accents competing at once. */
+  --bg: oklch(9% 0.012 145);
+  --bg-card: oklch(13% 0.014 145);
+  --bg-elevated: oklch(16% 0.016 145);
+  --input-bg: oklch(9% 0.012 145);
+  --text-primary: oklch(97% 0.006 145);
+  --text-muted: #888888;
+  --text-heading: oklch(97% 0.006 145);
+  --accent: #39ff14;
+  --accent-secondary: oklch(58% 0.15 350);
+  --accent-tertiary: oklch(62% 0.11 200);
+  --color-warning: oklch(80% 0.15 85);
+  --color-danger: oklch(58% 0.22 25);
+  --border: #39ff14;
+  --border-muted: #888888;
+  --selected-bg: #39ff14;
+  --selected-text: #000000;
+
+  --theme-font-ui: 'Geist Mono', monospace;
+  --theme-grid-opacity: 0.2;
+}
+
+body.light {
+  --bg: oklch(98% 0.006 145);
+  --bg-card: #f1f5f9;
+  --bg-elevated: #e7edf5;
+  --input-bg: oklch(98% 0.006 145);
+  --text-primary: #0f0f0f;
+  --text-muted: #64748b;
+  --text-heading: #0f0f0f;
+  --accent: #2563eb;
+  --accent-secondary: oklch(62% 0.16 45);
+  --accent-tertiary: oklch(58% 0.12 250);
+  --color-warning: oklch(72% 0.16 75);
+  --color-danger: oklch(55% 0.22 25);
+  --border: #cbd5e1;
+  --border-muted: #cbd5e1;
+  --selected-bg: #2563eb;
+  --selected-text: #ffffff;
+
+  --theme-font-ui: 'Geist Mono', monospace;
+  --theme-grid-opacity: 0;
+}
+
+@theme {
+  --font-mono: 'Geist Mono', monospace;
+  --font-display: 'Syne', sans-serif;
+  --font-ui: 'Geist Mono', monospace;
+
+  --color-neon-green: var(--accent);
+  --color-neon-pink: var(--accent-secondary);
+  --color-neon-blue: var(--accent-tertiary);
+  --color-cyber-black: var(--bg);
+  --color-cyber-gray: var(--bg-card);
+  --color-cyber-gray-2: var(--bg-elevated);
+  --color-heading: var(--text-heading);
+  --color-muted: var(--text-muted);
+  --color-border-muted: var(--border-muted);
+  --color-selected-bg: var(--selected-bg);
+  --color-selected-text: var(--selected-text);
+
+  /* Hallmark · 4pt named spacing scale — see design.md § Spacing.
+     Generates p-3xs..p-4xl / gap-3xs..gap-4xl etc. utilities. */
+  --spacing-3xs: 0.125rem;
+  --spacing-2xs: 0.25rem;
+  --spacing-xs: 0.5rem;
+  --spacing-sm: 0.75rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2.5rem;
+  --spacing-2xl: 4rem;
+  --spacing-3xl: 6rem;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-micro: 120ms;
+  --dur-short: 220ms;
+  --dur-long: 420ms;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--accent);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: none;
+}
+
+/* Hard borders and raw aesthetics */
+* {
+  --tw-border-opacity: 1;
+}
+
+::selection {
+  background: var(--selected-bg);
+  color: var(--selected-text);
+}
+
+/* Glitch effect styles */
+.glitch {
+  position: relative;
+  display: inline-block;
+}
+.glitch::before, .glitch::after {
+  content: attr(data-text);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--bg);
+}
+.glitch::before {
+  left: 2px;
+  text-shadow: -2px 0 var(--accent-secondary);
+  clip: rect(24px, 550px, 90px, 0);
+  animation: glitch-anim-2 3s infinite linear alternate-reverse;
+}
+.glitch::after {
+  left: -2px;
+  text-shadow: -2px 0 var(--accent-tertiary);
+  clip: rect(85px, 550px, 140px, 0);
+  animation: glitch-anim 2.5s infinite linear alternate-reverse;
+}
+@keyframes glitch-anim {
+  0% { clip: rect(10px, 9999px, 83px, 0); }
+  20% { clip: rect(61px, 9999px, 12px, 0); }
+  40% { clip: rect(41px, 9999px, 5px, 0); }
+  60% { clip: rect(98px, 9999px, 14px, 0); }
+  80% { clip: rect(72px, 9999px, 99px, 0); }
+  100% { clip: rect(26px, 9999px, 34px, 0); }
+}
+@keyframes glitch-anim-2 {
+  0% { clip: rect(23px, 9999px, 12px, 0); }
+  20% { clip: rect(81px, 9999px, 93px, 0); }
+  40% { clip: rect(11px, 9999px, 45px, 0); }
+  60% { clip: rect(6px, 9999px, 21px, 0); }
+  80% { clip: rect(94px, 9999px, 81px, 0); }
+  100% { clip: rect(65px, 9999px, 11px, 0); }
+}
+
+/* Reduced motion — every animation in the app gets a fallback, including
+   ones that pre-date this pass (the glitch wordmark, Tailwind's animate-pulse
+   / animate-bounce utilities used across Home/Player/Library). Functional
+   loaders (progress bars, spinners) still run, just capped to 150ms. */
+@media (prefers-reduced-motion: reduce) {
+  .glitch::before, .glitch::after {
+    animation: none;
+    display: none;
+  }
+  .animate-pulse, .animate-bounce {
+    animation-duration: 150ms;
+    animation-iteration-count: 1;
+  }
+}
+
+/* Brutalist Scrollbar */
+::-webkit-scrollbar {
+  width: 14px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg);
+  border-left: 2px solid var(--accent);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--accent);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-secondary);
+}
+
+.brutal-btn {
+  @apply border-2 px-4 py-2 uppercase font-bold transition-none active:translate-y-1 active:translate-x-1;
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 4px 4px 0 0 var(--accent);
+}
+
+.brutal-btn:hover {
+  background-color: var(--accent);
+  color: var(--selected-text);
+  box-shadow: 2px 2px 0 0 var(--accent);
+}
+.brutal-btn:active {
+  box-shadow: 0px 0px 0 0 var(--accent);
+}
+
+.brutal-btn-pink {
+  @apply border-2 px-4 py-2 uppercase font-bold transition-none active:translate-y-1 active:translate-x-1;
+  border-color: var(--accent-secondary);
+  color: var(--accent-secondary);
+  box-shadow: 4px 4px 0 0 var(--accent-secondary);
+}
+
+.brutal-btn-pink:hover {
+  background-color: var(--accent-secondary);
+  color: var(--selected-text);
+  box-shadow: 2px 2px 0 0 var(--accent-secondary);
+}
+.brutal-btn-pink:active {
+  box-shadow: 0px 0px 0 0 var(--accent-secondary);
+}
+
+.brutal-input {
+  @apply border-2 p-2 outline-none;
+  border-color: var(--accent);
+  color: var(--accent);
+  background-color: var(--input-bg);
+  box-shadow: none;
+}
+.brutal-input:focus {
+  border-color: var(--accent-secondary);
+  box-shadow: 0 0 10px var(--accent-secondary);
+}
+
+.brutal-card {
+  @apply border-2 p-4;
+  border-color: var(--accent);
+  background-color: var(--bg-card);
+  box-shadow: -4px 4px 0 0 var(--accent-tertiary);
+}
+
+body.light .brutal-card {
+  background-color: var(--bg-card);
+  border-color: var(--border);
+  box-shadow: -4px 4px 0 0 var(--accent-tertiary);
+}
+
+body.light .brutal-btn {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 4px 4px 0 0 var(--accent);
+}
+
+body.light .brutal-btn:hover {
+  background-color: var(--accent);
+  color: var(--selected-text);
+}
+
+body.light .brutal-btn-pink {
+  border-color: var(--accent-secondary);
+  color: var(--accent-secondary);
+  box-shadow: 4px 4px 0 0 var(--accent-secondary);
+}
+
+body.light .brutal-btn-pink:hover {
+  background-color: var(--accent-secondary);
+  color: var(--selected-text);
+}
+
+body.light .brutal-input {
+  border-color: var(--border);
+  color: var(--text-primary);
+  background-color: var(--input-bg);
+}
+
+/* ── N8 terminal-command nav caret. The blink is allowed only here — see
+   design.md § Nav / Hallmark's N8 archetype. ── */
+.nav-term__caret {
+  display: inline-block;
+  width: 1ch;
+  animation: nav-caret-blink 1.05s steps(2) infinite;
+}
+@keyframes nav-caret-blink {
+  50% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-term__caret { animation: none; }
+}
+
+/* ── Generation-complete reveal — the signature motif's second appearance.
+   Applied to the Player's real output bars (not a decorative stand-in) the
+   moment a generation finishes. See design.md § Motion. ── */
+.output-bar--reveal {
+  transform-origin: bottom;
+  animation: output-bar-reveal var(--dur-long) var(--ease-out) backwards;
+}
+@keyframes output-bar-reveal {
+  from { transform: scaleY(0); opacity: 0; }
+  to   { transform: scaleY(1); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .output-bar--reveal {
+    animation: output-bar-reveal-reduced 150ms linear backwards;
+  }
+  @keyframes output-bar-reveal-reduced {
+    from { opacity: 0; }
+    to   { opacity: 1; transform: none; }
+  }
+}
+
+/* ── Waveform — the app's one signature visual. See design.md § Motion. ── */
+
+.waveform {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  width: 100%;
+}
+
+.waveform__spectrogram {
+  display: grid;
+  grid-template-columns: repeat(48, 1fr);
+  gap: 2px;
+  height: 22px;
+}
+
+.waveform__spectrogram span {
+  background: var(--accent-tertiary);
+  min-width: 0;
+}
+
+.waveform__bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 88px;
+}
+
+.waveform__bars span {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  background: var(--accent);
+  transform-origin: bottom;
+}
+
+.waveform--ambient .waveform__bars span {
+  animation: waveform-bob var(--dur, 1100ms) var(--ease-in-out) infinite alternate;
+}
+
+@keyframes waveform-bob {
+  from { transform: scaleY(calc(var(--h) * 0.5)); }
+  to   { transform: scaleY(var(--h)); }
+}
+
+.waveform--reveal .waveform__bars span {
+  transform: scaleY(0);
+  animation: waveform-reveal var(--dur-long) var(--ease-out) forwards;
+}
+
+@keyframes waveform-reveal {
+  to { transform: scaleY(var(--h)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .waveform--ambient .waveform__bars span {
+    animation: none;
+    transform: scaleY(var(--h));
+  }
+  .waveform--reveal .waveform__bars span {
+    animation: waveform-reveal-reduced 150ms linear forwards;
+  }
+  @keyframes waveform-reveal-reduced {
+    from { opacity: 0; transform: scaleY(var(--h)); }
+    to   { opacity: 1; transform: scaleY(var(--h)); }
+  }
+}

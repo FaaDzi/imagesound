@@ -1,0 +1,13 @@
+[
+  {
+    "date": "2026-07-23",
+    "scope": "app",
+    "macrostructure": "Workbench (Home, Player) + Bento Grid (Library) — adapted for a live tool, no marketing pages",
+    "theme": "custom (tuned) — anchored on existing Syne + Geist Mono / phosphor-green identity, not a catalog swap",
+    "theme_axes": "dark paper-band / mono+display-sans mixed / chromatic-other (phosphor green)",
+    "nav": "N8 Terminal command",
+    "footer": "Ft2 Inline single line (status strip)",
+    "enrichment": "Tier-A CSS-art — hand-built spectrogram/waveform motif (Home hero + Player completion reveal)",
+    "brief": "ImageSound · redesign pass following a hallmark audit (0 critical / 3 major / 3 minor) — fixed centred hero, N1a-shaped nav, and uniform panel voice across Home/Player/Library"
+  }
+]
