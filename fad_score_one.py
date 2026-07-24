@@ -74,6 +74,7 @@ def _suppress_stdout():
         os.dup2(devnull_fd, stdout_fd)
         yield
     finally:
+        sys.stdout.flush()
         os.dup2(saved_fd, stdout_fd)
         os.close(devnull_fd)
         os.close(saved_fd)
