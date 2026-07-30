@@ -24,6 +24,7 @@ RATE_LIMIT_GENERATE: str = "10/minute"
 RATE_LIMIT_DESCRIBE: str = "20/minute"
 RATE_LIMIT_UPLOAD: str = "30/minute"
 RATE_LIMIT_MIDI: str = "10/minute"
+RATE_LIMIT_LOGIN: str = "10/minute"
 
 # CORS — list the frontend dev origin explicitly (never use "*" with credentials).
 # Add the production/tunnel URL here or override via ALLOWED_ORIGINS env var.
@@ -38,6 +39,12 @@ SMALL_MODEL_AVAILABLE: bool = True
 # How long an unsaved generated song is kept before cleanup sweeps it.
 # A saved song always gets the standard 7-day window (set at save time).
 UNSAVED_EXPIRY_SECONDS: int = int(os.getenv("UNSAVED_EXPIRY_SECONDS", str(6 * 3600)))
+
+# Signs the session cookie (see main.py's SessionMiddleware). The fallback
+# below is DEV-ONLY -- it must never be relied on outside local development,
+# since anyone who knows it could forge a valid session cookie. Set a real
+# random value via the SESSION_SECRET_KEY env var for anything beyond that.
+SESSION_SECRET_KEY: str = os.getenv("SESSION_SECRET_KEY", "dev-only-insecure-secret-change-me")
 
 
 def ensure_storage_dirs() -> None:

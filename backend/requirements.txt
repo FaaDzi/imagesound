@@ -5,3 +5,4 @@ filetype>=1.2.0
 slowapi>=0.1.9
 pillow>=10.0.0
 bcrypt>=4.0.0
+itsdangerous>=2.0.0
