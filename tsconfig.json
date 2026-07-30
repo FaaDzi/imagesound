@@ -24,7 +24,6 @@
     "noEmit": true
   },
   "exclude": [
-    "node_modules",
-    "src_backup_pre_hallmark"
+    "node_modules"
   ]
 }
