@@ -1,6 +1,6 @@
 {
   "name": "Imagesound",
-  "description": "Brutalist Cyberpunk browser-based audio converter and image-to-sound synthesizer.",
+  "description": "FastAPI + React app that turns an image, text prompt, or audio clip into an AI-generated song using Gemini and Meta's MusicGen.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
