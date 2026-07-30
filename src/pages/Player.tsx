@@ -414,7 +414,7 @@ export function Player() {
 
   return (
     <div className="container mx-auto p-4 md:p-8 flex-grow flex flex-col">
-      <audio ref={audioRef} preload="metadata" crossOrigin="anonymous" />
+      <audio ref={audioRef} preload="metadata" crossOrigin="use-credentials" />
 
       <div className="flex items-center justify-between border-b-4 pb-4 mb-8" style={{ borderBottomColor: 'var(--accent-secondary)' }}>
         <h2 className="text-3xl font-display font-bold uppercase tracking-widest" style={{ color: 'var(--accent-secondary)' }}>
