@@ -1,5 +1,9 @@
 import sqlite3
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
+
+import bcrypt
 
 from app.config import DATABASE_PATH
 
@@ -20,6 +24,18 @@ CREATE TABLE IF NOT EXISTS files (
     source_file_id TEXT
 );
 """
+
+_CREATE_USERS_TABLE = """
+CREATE TABLE IF NOT EXISTS users (
+    id            TEXT PRIMARY KEY,
+    username      TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at    TEXT NOT NULL
+);
+"""
+
+_DEFAULT_USERNAME = "test"
+_DEFAULT_PASSWORD = "admin1234"
 
 
 def get_connection() -> sqlite3.Connection:
@@ -52,10 +68,30 @@ def _migrate_db(conn: sqlite3.Connection) -> None:
             pass  # column already exists
 
 
+def _seed_default_user(conn: sqlite3.Connection) -> None:
+    """Seed exactly one default user (test/admin1234) if `users` is empty.
+
+    Never overwrites an existing row -- once seeded, or once the password is
+    ever changed some other way, this is a permanent no-op. Idempotent by
+    design: safe to call on every startup.
+    """
+    count = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+    if count > 0:
+        return
+    password_hash = bcrypt.hashpw(_DEFAULT_PASSWORD.encode(), bcrypt.gensalt()).decode()
+    conn.execute(
+        "INSERT INTO users (id, username, password_hash, created_at) VALUES (?, ?, ?, ?)",
+        (str(uuid.uuid4()), _DEFAULT_USERNAME, password_hash, datetime.now(timezone.utc).isoformat()),
+    )
+    conn.commit()
+
+
 def init_db() -> None:
     """Create the database file and all tables if they don't exist."""
     DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
     with get_connection() as conn:
         conn.execute(_CREATE_FILES_TABLE)
+        conn.execute(_CREATE_USERS_TABLE)
         conn.commit()
         _migrate_db(conn)
+        _seed_default_user(conn)
