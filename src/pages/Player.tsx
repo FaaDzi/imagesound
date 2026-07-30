@@ -1,11 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Play, Pause, FastForward, Rewind, Download, AlertTriangle, Activity, Zap, Save, X } from 'lucide-react';
-import { describeImage, saveJob, discardJob, audioUrl, downloadSong, DOWNLOAD_FORMATS, DownloadFormat } from '../api';
+import { Play, Pause, FastForward, Rewind, AlertTriangle } from 'lucide-react';
+import { describeImage, saveJob, discardJob, audioUrl, downloadSong, DownloadFormat } from '../api';
 import { usePromptHistory } from '../hooks/usePromptHistory';
 import { useGeneration } from '../hooks/useGeneration';
 import { useInProgress } from '../context/InProgressContext';
-import { useAudioEffects, effectsAreNeutral } from '../hooks/useAudioEffects';
+import { useAudioEffects } from '../hooks/useAudioEffects';
+import { SourcePreview } from '../components/player/SourcePreview';
+import { ArcEditor, ARC_PRESETS, samplePreset } from '../components/player/ArcEditor';
+import { EffectsPanel } from '../components/player/EffectsPanel';
+import { GeneratePanel } from '../components/player/GeneratePanel';
 
 // Set to true once facebook/musicgen-small has been downloaded locally.
 const SMALL_MODEL_AVAILABLE = true;
@@ -18,66 +22,9 @@ const BAR_HEIGHTS = Array.from({ length: 48 }, (_, i) =>
 // Chunk boundary — matches _CHUNK_SEC in generate_song.py.
 const LONG_SONG_SEC = 30;
 
-// Arc preset shapes: 4 intensity points (0–100) for 4 chunks.
-// Sampled to N points when duration produces fewer than 4 chunks.
-const ARC_PRESETS: { id: string; label: string; points: [number, number, number, number] }[] = [
-  { id: 'steady',          label: 'STEADY',    points: [50, 50, 50, 50] },
-  { id: 'gentle_build',    label: 'GENTLE',    points: [25, 45, 68, 88] },
-  { id: 'rise_and_settle', label: 'RISE+FADE', points: [30, 65, 88, 50] },
-  { id: 'calm_energetic',  label: 'CALM→FULL', points: [15, 40, 70, 95] },
-];
-
-// Sample a 4-point preset curve to exactly n points via linear interpolation.
-function samplePreset(points: [number, number, number, number], n: number): number[] {
-  if (n <= 1) return [points[0]];
-  if (n >= 4) return [...points];
-  return Array.from({ length: n }, (_, i) => {
-    const t  = (i / (n - 1)) * 3;
-    const lo = Math.min(3, Math.floor(t));
-    const hi = Math.min(3, Math.ceil(t));
-    const f  = t - lo;
-    return Math.round(points[lo] * (1 - f) + points[hi] * f);
-  });
-}
-
 function formatTime(s: number): string {
   const m = Math.floor(s / 60);
   return `${String(m).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
-}
-
-function EffectSlider({
-  label, value, min, max, step, display, onChange,
-}: {
-  label:   string;
-  value:   number;
-  min:     number;
-  max:     number;
-  step:    number;
-  display: (v: number) => string;
-  onChange: (v: number) => void;
-}) {
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-0.5">
-        <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--accent-secondary)' }}>
-          {label}
-        </span>
-        <span className="text-[10px] font-mono" style={{ color: 'var(--accent-secondary)', opacity: 0.65 }}>
-          {display(value)}
-        </span>
-      </div>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={e => onChange(parseFloat(e.target.value))}
-        className="w-full"
-        style={{ accentColor: 'var(--accent-secondary)' }}
-      />
-    </div>
-  );
 }
 
 export function Player() {
@@ -156,6 +103,7 @@ export function Player() {
   const fileId  = source?.fileId ?? null;
   const filename = isText ? '// TEXT_INPUT' : ((source?.filename) || '[NO_FILE_DETECTED.RAW]');
   const url = source?.url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop';
+  const textPreview = history.draftText || state?.prompt || '--';
 
   // ── Effects ───────────────────────────────────────────────────────────────
 
@@ -354,12 +302,6 @@ export function Player() {
 
   // ── Generation ────────────────────────────────────────────────────────────
 
-  const isGenerating =
-    generation.phase === 'submitting' ||
-    generation.phase === 'queued' ||
-    generation.phase === 'loading_model' ||
-    generation.phase === 'processing';
-
   const handleGenerate = () => {
     setIsSaving(false);
     setIsDiscarding(false);
@@ -494,75 +436,17 @@ export function Player() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
         {/* LEFT COL: ORIGINAL SOURCE */}
-        <div className="col-span-1 border-2 p-4 flex flex-col relative h-[400px]" style={{ borderColor: 'var(--accent-tertiary)', backgroundColor: 'var(--bg-card)' }}>
-          <div className="absolute top-0 right-0 text-xs font-bold px-2 py-1 uppercase tracking-widest" style={{ backgroundColor: 'var(--accent-tertiary)', color: 'var(--selected-text)' }}>
-            SRC_INPUT
-          </div>
-
-          <h3 className="font-bold uppercase tracking-widest border-b pb-2 mb-4 truncate" title={filename} style={{ color: 'var(--accent-tertiary)', borderBottomColor: 'var(--accent-tertiary)' }}>
-            {filename}
-          </h3>
-
-          <div className="flex-grow flex flex-col items-center justify-center border border-dashed overflow-hidden relative group" style={{ borderColor: 'var(--accent-tertiary)' }}>
-            {isImage ? (
-              <>
-                <div className="flex-grow relative w-full h-full overflow-hidden border-b border-dashed" style={{ borderBottomColor: 'var(--accent-tertiary)' }}>
-                  <img src={url} alt="Source" className="w-full h-full object-cover filter grayscale sepia group-hover:filter-none transition-all duration-700" />
-                  <div className="absolute bottom-2 right-2 px-2 py-1 border text-xs uppercase tracking-widest font-bold" style={{ backgroundColor: 'var(--bg)', borderColor: 'var(--accent-tertiary)' }}>
-                    M:{mode}
-                  </div>
-                </div>
-                <div className="h-24 w-full shrink-0 flex items-center justify-center relative" style={{ backgroundColor: 'var(--bg)', color: 'var(--accent-tertiary)' }}>
-                  <Activity className="w-12 h-12" style={{ opacity: 0.5 }} />
-                  <span className="absolute bottom-1 right-2 text-[10px] uppercase tracking-widest">[ WAVEFORM ]</span>
-                </div>
-              </>
-            ) : isText ? (
-              <div className="flex flex-col items-start justify-start h-full w-full p-6 gap-4 overflow-hidden" style={{ color: 'var(--accent-tertiary)' }}>
-                <div className="w-full border-b pb-2 shrink-0" style={{ borderBottomColor: 'var(--accent-tertiary)' }}>
-                  <span className="opacity-50 block mb-1 text-xs monospace uppercase">INPUT_TYPE:</span>
-                  <span className="font-bold text-sm uppercase tracking-widest">TEXT_PROMPT</span>
-                </div>
-                <div className="w-full min-h-0 flex-grow overflow-hidden">
-                  <span className="opacity-50 block mb-2 text-xs monospace uppercase">PROMPT:</span>
-                  <p className="text-xs font-mono leading-relaxed break-words overflow-y-auto" style={{ maxHeight: '180px', color: 'var(--accent-tertiary)', opacity: 0.9 }}>
-                    {history.draftText || state?.prompt || '--'}
-                  </p>
-                </div>
-              </div>
-            ) : isAudio ? (
-              <div className="flex flex-col items-start justify-center h-full w-full p-6 gap-4 monospace uppercase text-sm" style={{ color: 'var(--accent-tertiary)' }}>
-                <div className="w-full border-b pb-2" style={{ borderBottomColor: 'var(--accent-tertiary)' }}>
-                  <span className="opacity-50 block mb-1">FILE_NAME:</span>
-                  <span className="font-bold truncate block">{filename}</span>
-                </div>
-                <div className="w-full border-b pb-2" style={{ borderBottomColor: 'var(--accent-tertiary)' }}>
-                  <span className="opacity-50 block mb-1">MELODY_REFERENCE:</span>
-                  {source?.url ? (
-                    <audio controls src={source.url} className="w-full mt-2" />
-                  ) : (
-                    <span className="text-xs normal-case opacity-60">no preview available</span>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-col items-start justify-center h-full w-full p-6 gap-4 monospace uppercase text-sm" style={{ color: 'var(--accent-tertiary)' }}>
-                <div className="w-full border-b pb-2" style={{ borderBottomColor: 'var(--accent-tertiary)' }}>
-                  <span className="opacity-50 block mb-1">FILE_NAME:</span>
-                  <span className="font-bold truncate block">{filename}</span>
-                </div>
-                <div className="w-full border-b pb-2" style={{ borderBottomColor: 'var(--accent-tertiary)' }}>
-                  <span className="opacity-50 block mb-1">FORMAT:</span>
-                  <span className="font-bold truncate block">{filename.split('.').pop()?.toUpperCase() || 'RAW'}</span>
-                </div>
-                <div className="w-full border-b pb-2" style={{ borderBottomColor: 'var(--accent-tertiary)' }}>
-                  <span className="opacity-50 block mb-1">ID:</span>
-                  <span className="font-bold truncate block text-[10px]">{fileId ?? 'N/A'}</span>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+        <SourcePreview
+          filename={filename}
+          imageUrl={url}
+          rawUrl={source?.url ?? null}
+          fileId={fileId}
+          isImage={isImage}
+          isText={isText}
+          isAudio={isAudio}
+          mode={mode}
+          textPreview={textPreview}
+        />
 
         {/* RIGHT COL: VISUALIZER & CONTROLS */}
         <div className="col-span-1 lg:col-span-2 flex flex-col gap-8">
@@ -575,75 +459,17 @@ export function Player() {
 
             {showArcEditor ? (
               /* ── ARC EDITOR MODE ── */
-              <div className="flex flex-col h-full pt-7">
-                {/* Draggable segmented bars */}
-                <div
-                  ref={arcBarRef}
-                  className="flex-grow flex gap-[3px] cursor-ns-resize select-none"
-                  style={{ touchAction: 'none' }}
-                  onPointerDown={handleArcPointerDown}
-                  onPointerMove={handleArcPointerMove}
-                  onPointerUp={handleArcPointerUp}
-                  onPointerCancel={handleArcPointerCancel}
-                >
-                  {arcSegments.map((intensity, i) => {
-                    // Map 0–100 intensity to 8–95% fill height so bars are always visible.
-                    const fillPct = 8 + (intensity / 100) * 87;
-                    return (
-                      <div key={i} className="flex-1 relative h-full">
-                        {/* Track background */}
-                        <div className="absolute inset-0" style={{ backgroundColor: 'var(--accent)', opacity: 0.1 }} />
-                        {/* Filled portion */}
-                        <div
-                          className="absolute bottom-0 left-0 right-0"
-                          style={{ height: `${fillPct}%`, backgroundColor: 'var(--accent)', opacity: 0.82 }}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Chunk labels below bars */}
-                <div className="flex gap-[3px] mt-1 shrink-0">
-                  {arcSegments.map((_, i) => (
-                    <div key={i} className="flex-1 text-center text-[8px] font-mono" style={{ color: 'var(--accent)', opacity: 0.4 }}>
-                      C{i + 1}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Preset buttons */}
-                <div className="flex gap-1 mt-2 shrink-0">
-                  {ARC_PRESETS.map(preset => {
-                    const active = activePresetId === preset.id;
-                    return (
-                      <button
-                        key={preset.id}
-                        onClick={() => applyPreset(preset.id)}
-                        className="flex-1 border py-1 text-[9px] font-bold uppercase tracking-wide transition-colors"
-                        style={{
-                          borderColor: 'var(--accent)',
-                          backgroundColor: active ? 'var(--accent)' : 'transparent',
-                          color: active ? 'var(--selected-text)' : 'var(--accent)',
-                          opacity: active ? 1 : 0.5,
-                        }}
-                      >
-                        {preset.label}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Info line */}
-                <div className="flex justify-between items-center mt-1 shrink-0">
-                  <span className="text-[9px] font-mono uppercase" style={{ color: 'var(--accent)', opacity: 0.38 }}>
-                    drag bars · click preset · height = intensity
-                  </span>
-                  <span className="text-[9px] font-mono uppercase" style={{ color: 'var(--accent)', opacity: 0.38 }}>
-                    {numChunks} &times; 30s
-                  </span>
-                </div>
-              </div>
+              <ArcEditor
+                segments={arcSegments}
+                numChunks={numChunks}
+                activePresetId={activePresetId}
+                barRef={arcBarRef}
+                onApplyPreset={applyPreset}
+                onPointerDown={handleArcPointerDown}
+                onPointerMove={handleArcPointerMove}
+                onPointerUp={handleArcPointerUp}
+                onPointerCancel={handleArcPointerCancel}
+              />
             ) : (
               /* ── WAVEFORM / PLAYBACK MODE ── */
               <>
@@ -1021,320 +847,32 @@ export function Player() {
               </div>
 
               {/* EFFECTS — live Web Audio chain */}
-              <div className="border-t pt-4" style={{ borderTopColor: 'var(--accent-secondary)' }}>
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--accent-secondary)' }}>
-                    EFFECTS
-                  </span>
-                  {effects.effectsAvailable ? (
-                    <button
-                      onClick={effects.resetEffects}
-                      className="text-[9px] font-bold uppercase px-1.5 py-0.5 border transition-colors"
-                      style={{ borderColor: 'var(--accent-secondary)', color: 'var(--accent-secondary)' }}
-                      onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--accent-secondary)'; e.currentTarget.style.color = 'var(--bg)'; }}
-                      onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--accent-secondary)'; }}
-                    >
-                      RESET
-                    </button>
-                  ) : (
-                    <span className="text-[9px] font-mono uppercase" style={{ color: 'var(--accent-secondary)', opacity: 0.4 }}>
-                      UNAVAILABLE
-                    </span>
-                  )}
-                </div>
-
-                {!effects.effectsAvailable ? (
-                  <p className="text-[10px] font-mono uppercase" style={{ color: 'var(--accent-secondary)', opacity: 0.5 }}>
-                    // WEB AUDIO SETUP FAILED — CHECK BROWSER CONSOLE
-                  </p>
-                ) : (
-                  <div className="flex flex-col gap-2.5">
-                    {/* GAIN */}
-                    <EffectSlider
-                      label="GAIN"
-                      value={effects.params.gain}
-                      min={0} max={2} step={0.01}
-                      display={v => `${Math.round(v * 100)}%`}
-                      onChange={v => effects.updateParam('gain', v)}
-                    />
-
-                    {/* EQ */}
-                    <div>
-                      <p className="text-[9px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--accent-secondary)', opacity: 0.6 }}>EQ</p>
-                      <div className="flex flex-col gap-1.5">
-                        <EffectSlider label="LOW"  value={effects.params.eqLow}  min={-12} max={12} step={0.5}
-                          display={v => `${v > 0 ? '+' : ''}${v.toFixed(1)}dB`} onChange={v => effects.updateParam('eqLow', v)} />
-                        <EffectSlider label="MID"  value={effects.params.eqMid}  min={-12} max={12} step={0.5}
-                          display={v => `${v > 0 ? '+' : ''}${v.toFixed(1)}dB`} onChange={v => effects.updateParam('eqMid', v)} />
-                        <EffectSlider label="HIGH" value={effects.params.eqHigh} min={-12} max={12} step={0.5}
-                          display={v => `${v > 0 ? '+' : ''}${v.toFixed(1)}dB`} onChange={v => effects.updateParam('eqHigh', v)} />
-                      </div>
-                    </div>
-
-                    {/* COMPRESSION */}
-                    <div>
-                      <p className="text-[9px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--accent-secondary)', opacity: 0.6 }}>COMP</p>
-                      <div className="flex flex-col gap-1.5">
-                        <EffectSlider label="THRESH" value={effects.params.compThreshold} min={-60} max={0} step={1}
-                          display={v => `${v}dB`} onChange={v => effects.updateParam('compThreshold', v)} />
-                        <EffectSlider label="RATIO"  value={effects.params.compRatio}     min={1}   max={20} step={0.5}
-                          display={v => `${v.toFixed(1)}:1`} onChange={v => effects.updateParam('compRatio', v)} />
-                      </div>
-                    </div>
-
-                    {/* REVERB */}
-                    <EffectSlider
-                      label="REVERB"
-                      value={effects.params.reverbMix}
-                      min={0} max={1} step={0.01}
-                      display={v => `${Math.round(v * 100)}%`}
-                      onChange={v => effects.updateParam('reverbMix', v)}
-                    />
-                  </div>
-                )}
-
-                <p className="text-[9px] font-mono uppercase mt-2" style={{ color: 'var(--accent-secondary)', opacity: 0.4 }}>
-                  {effects.effectsAvailable
-                    ? '// live preview · same engine renders the download'
-                    : '// effects activate when you play a song'}
-                </p>
-              </div>
+              <EffectsPanel effects={effects} />
             </div>
 
           </div>
 
           {/* GENERATE SONG */}
-          <div data-collider className="border-4 p-4 flex flex-col gap-3" style={{ borderColor: 'var(--accent)', backgroundColor: 'var(--bg)' }}>
-            <div className="flex items-center justify-between">
-              <h4 className="font-bold uppercase tracking-widest text-sm" style={{ color: 'var(--accent)' }}>
-                [ GENERATE_SONG ]
-              </h4>
-              {generation.jobId && (
-                <span className="text-[10px] font-mono opacity-40" style={{ color: 'var(--accent)' }}>
-                  JOB:{generation.jobId.slice(0, 8)}
-                </span>
-              )}
-            </div>
-
-            {/* IN-FLIGHT */}
-            {isGenerating && (
-              <div className="flex flex-col gap-2">
-                <p className="text-sm font-mono uppercase animate-pulse" style={{ color: 'var(--accent)' }}>
-                  {generation.phase === 'submitting'
-                    ? '// QUEUING...'
-                    : generation.phase === 'queued'
-                    ? generation.queueDepth != null && generation.queueDepth > 1
-                      ? `// QUEUED — ${generation.queueDepth} JOBS WAITING`
-                      : '// QUEUED — NEXT UP'
-                    : generation.phase === 'loading_model'
-                    ? '// LOADING MODEL INTO VRAM...'
-                    : '// GENERATING AUDIO...'}
-                </p>
-                <div className="flex gap-[2px] h-2 overflow-hidden">
-                  {Array.from({ length: 32 }).map((_, i) => {
-                    const hasRealProgress = generation.phase === 'processing' && generation.progress != null;
-                    const lit = hasRealProgress && i < Math.floor((generation.progress ?? 0) * 32);
-                    return (
-                      <div
-                        key={i}
-                        className={hasRealProgress ? 'flex-1' : 'flex-1 animate-pulse'}
-                        style={{
-                          backgroundColor: 'var(--accent)',
-                          animationDelay: hasRealProgress ? undefined : `${i * 55}ms`,
-                          opacity: hasRealProgress ? (lit ? 1 : 0.15) : 0.7,
-                          transition: hasRealProgress ? 'opacity 150ms linear' : undefined,
-                        }}
-                      />
-                    );
-                  })}
-                </div>
-                <p className="text-[10px] font-mono uppercase opacity-50" style={{ color: 'var(--accent)' }}>
-                  {generation.phase === 'processing'
-                    ? (generation.progress != null
-                        ? `// SYNTHESIZING — ${Math.round(generation.progress * 100)}%`
-                        : '// MUSICGEN SYNTHESIZING — APPROX 15-30s')
-                    : generation.phase === 'loading_model'
-                    ? '// WARMING UP GPU — FIRST RUN TAKES ~15s'
-                    : generation.queueDepth != null && generation.queueDepth > 1
-                    ? `// ${generation.queueDepth} JOBS IN QUEUE — WILL START WHEN WORKER IS FREE`
-                    : '// NEXT IN QUEUE — STARTING SOON'}
-                </p>
-                <button
-                  onClick={handleCancel}
-                  className="brutal-btn brutal-btn-pink w-full flex items-center justify-center gap-2"
-                >
-                  <X size={16} /> CANCEL GENERATION
-                </button>
-              </div>
-            )}
-
-            {/* DONE */}
-            {generation.phase === 'done' && (
-              <div className="flex flex-col gap-3">
-                <div
-                  className="flex items-center gap-2 border p-3 text-xs font-mono uppercase font-bold"
-                  style={{ borderColor: 'var(--accent)', color: 'var(--accent)', backgroundColor: 'color-mix(in oklch, var(--accent) 6%, transparent)' }}
-                >
-                  ✓ GENERATION COMPLETE — AUDIO READY
-                </div>
-                {saveConfirmed ? (
-                  <div
-                    className="flex items-center gap-2 border p-3 text-xs font-mono uppercase font-bold"
-                    style={{ borderColor: 'var(--accent)', color: 'var(--accent)', backgroundColor: 'color-mix(in oklch, var(--accent) 12%, transparent)' }}
-                  >
-                    ✓ SAVED TO LIBRARY
-                  </div>
-                ) : (
-                  <>
-                    <p className="text-[10px] font-mono uppercase" style={{ color: 'var(--color-warning)', opacity: 0.9 }}>
-                      ⚠ UNSAVED — SAVE TO KEEP OR IT WILL EXPIRE
-                    </p>
-                    {discardConfirmPending ? (
-                      <div
-                        className="border-2 p-3 flex flex-col gap-2"
-                        style={{ borderColor: 'var(--accent-secondary)', backgroundColor: 'color-mix(in oklch, var(--accent-secondary) 6%, transparent)' }}
-                      >
-                        <p className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--accent-secondary)' }}>
-                          ⚠ Discard this audio? This can't be undone.
-                        </p>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={handleDiscardConfirm}
-                            disabled={isDiscarding}
-                            className="brutal-btn brutal-btn-pink flex-1 flex items-center justify-center gap-1 disabled:opacity-40 text-xs"
-                          >
-                            {isDiscarding ? <span className="animate-pulse">DISCARDING...</span> : <><X size={12} /> CONFIRM</>}
-                          </button>
-                          <button
-                            onClick={handleDiscardCancel}
-                            className="brutal-btn flex-1 flex items-center justify-center gap-1 text-xs"
-                            style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
-                          >
-                            CANCEL
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={handleSave}
-                          disabled={isSaving || isDiscarding}
-                          className="brutal-btn flex-1 flex items-center justify-center gap-2 disabled:opacity-40"
-                          style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
-                        >
-                          {isSaving ? <span className="animate-pulse">SAVING...</span> : <><Save size={14} /> SAVE</>}
-                        </button>
-                        <button
-                          onClick={handleDiscardClick}
-                          disabled={isSaving || isDiscarding}
-                          className="brutal-btn brutal-btn-pink flex-1 flex items-center justify-center gap-2 disabled:opacity-40"
-                        >
-                          <X size={14} /> DISCARD
-                        </button>
-                      </div>
-                    )}
-                  </>
-                )}
-                {/* Download / generate-again stay available regardless of save
-                    state — saving shouldn't take away the ability to play or
-                    download the song you just saved. */}
-                {effects.isRendering ? (
-                  <div className="flex flex-col gap-1">
-                    <div
-                      className="border p-3 text-xs font-mono uppercase animate-pulse text-center"
-                      style={{ borderColor: 'var(--accent-secondary)', color: 'var(--accent-secondary)' }}
-                    >
-                      // APPLYING EFFECTS...
-                    </div>
-                    <p className="text-[10px] font-mono uppercase text-center" style={{ color: 'var(--accent-secondary)', opacity: 0.5 }}>
-                      // BROWSER RENDERING — EFFECTS BAKING IN
-                    </p>
-                  </div>
-                ) : showFormatPicker ? (
-                  <div className="flex flex-col gap-1 border p-2" style={{ borderColor: 'var(--accent)' }}>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[9px] font-mono uppercase tracking-widest" style={{ color: 'var(--accent)', opacity: 0.6 }}>
-                        {effectsAreNeutral(effects.params) ? 'CHOOSE FORMAT' : 'CHOOSE FORMAT · EFFECTS ACTIVE'}
-                      </span>
-                      <button
-                        onClick={() => setShowFormatPicker(false)}
-                        className="text-[9px] font-mono uppercase tracking-widest transition-opacity"
-                        style={{ color: 'var(--accent)', opacity: 0.5 }}
-                        onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
-                        onMouseLeave={e => (e.currentTarget.style.opacity = '0.5')}
-                      >
-                        ✕
-                      </button>
-                    </div>
-                    <div className="flex gap-1">
-                      {DOWNLOAD_FORMATS.map(f => (
-                        <button
-                          key={f}
-                          onClick={async () => {
-                            if (!generation.jobId) return;
-                            setDownloadFormat(f);
-                            setShowFormatPicker(false);
-                            if (effectsAreNeutral(effects.params)) {
-                              await downloadSong(generation.jobId, generation.result?.prompt, f);
-                            } else {
-                              await effects.renderAndDownload(generation.jobId, generation.result?.prompt, f);
-                            }
-                          }}
-                          className="flex-1 border py-1.5 text-[9px] font-bold uppercase tracking-wide transition-colors"
-                          style={{
-                            borderColor: 'var(--accent)',
-                            backgroundColor: downloadFormat === f ? 'var(--accent)' : 'transparent',
-                            color: downloadFormat === f ? 'var(--selected-text)' : 'var(--accent)',
-                            opacity: downloadFormat === f ? 1 : 0.65,
-                          }}
-                        >
-                          {f.toUpperCase()}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setShowFormatPicker(true)}
-                    className="brutal-btn w-full flex items-center justify-center gap-2"
-                    style={{ opacity: 0.75 }}
-                  >
-                    <Download size={14} /> DOWNLOAD
-                  </button>
-                )}
-                <button
-                  onClick={() => { clearItem(); generation.reset(); }}
-                  className="brutal-btn w-full flex items-center justify-center gap-2"
-                  style={{ opacity: 0.45 }}
-                >
-                  <Zap size={16} /> GENERATE AGAIN {saveConfirmed ? '' : '(DISCARD CURRENT)'}
-                </button>
-              </div>
-            )}
-
-            {/* FAILED */}
-            {generation.phase === 'failed' && (
-              <div className="flex flex-col gap-3">
-                <p className="text-xs font-mono uppercase" style={{ color: 'var(--accent-secondary)' }}>
-                  ERROR: {generation.error ?? 'Unknown error.'}
-                </p>
-                <button onClick={handleGenerate} className="brutal-btn w-full brutal-btn-pink flex items-center justify-center gap-2">
-                  <Zap size={16} /> RETRY
-                </button>
-              </div>
-            )}
-
-            {/* IDLE */}
-            {generation.phase === 'idle' && (
-              <button
-                onClick={handleGenerate}
-                disabled={!history.draftText.trim() && !fileId}
-                className="brutal-btn w-full flex items-center justify-center gap-2 disabled:opacity-30"
-              >
-                <Zap size={16} /> GENERATE SONG
-              </button>
-            )}
-          </div>
+          <GeneratePanel
+            generation={generation}
+            effects={effects}
+            isSaving={isSaving}
+            isDiscarding={isDiscarding}
+            saveConfirmed={saveConfirmed}
+            discardConfirmPending={discardConfirmPending}
+            showFormatPicker={showFormatPicker}
+            setShowFormatPicker={setShowFormatPicker}
+            downloadFormat={downloadFormat}
+            setDownloadFormat={setDownloadFormat}
+            generateDisabled={!history.draftText.trim() && !fileId}
+            onGenerate={handleGenerate}
+            onCancel={handleCancel}
+            onSave={handleSave}
+            onDiscardClick={handleDiscardClick}
+            onDiscardConfirm={handleDiscardConfirm}
+            onDiscardCancel={handleDiscardCancel}
+            onGenerateAgain={() => { clearItem(); generation.reset(); }}
+          />
 
         </div>
       </div>
