@@ -167,7 +167,8 @@ export function useAudioEffects(audioRef: RefObject<HTMLAudioElement>) {
       const { input, output, nodes } = buildEffectChain(ctx, irDataRef.current, paramsRef.current);
 
       // Wrap the <audio> element — redirects output through the effect graph.
-      // Requires crossOrigin="anonymous" on the element for cross-origin audio.
+      // Requires crossOrigin="use-credentials" on the element (CORS-clean + sends
+      // the session cookie, since /audio/{id} is a protected endpoint).
       const source = ctx.createMediaElementSource(audio);
       source.connect(input);
       output.connect(ctx.destination);
