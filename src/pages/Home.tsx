@@ -3,11 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { UploadCloud, Image as ImageIcon, Music, AlertCircle, AlertTriangle, Type } from 'lucide-react';
 import { uploadFile } from '../api';
 import { useInProgress } from '../context/InProgressContext';
+import { useAuth } from '../context/AuthContext';
 import { Waveform } from '../components/Waveform';
 
 export function Home() {
   const navigate = useNavigate();
   const { item, setItem, clearItem } = useInProgress();
+  const { username } = useAuth();
+  const loggedIn = !!username;
   const [dragActive, setDragActive] = useState(false);
   const [inputType, setInputType] = useState<'image' | 'audio' | 'text'>('image');
   const [uploading, setUploading] = useState(false);
@@ -174,7 +177,7 @@ export function Home() {
               </div>
 
               <textarea
-                className="brutal-input w-full font-mono text-sm resize-none"
+                className="brutal-input w-full font-mono text-sm resize-none disabled:opacity-40"
                 rows={4}
                 maxLength={300}
                 value={textInput}
@@ -182,6 +185,8 @@ export function Home() {
                 onKeyDown={handleTextKeyDown}
                 placeholder="Describe the music you want… e.g. 'slow ambient piano, rainy and calm'"
                 autoFocus
+                disabled={!loggedIn}
+                title={!loggedIn ? 'Login required' : undefined}
               />
 
               <div className="flex items-center justify-between w-full gap-2">
@@ -190,8 +195,9 @@ export function Home() {
                 </span>
                 <button
                   onClick={handleTextSubmit}
-                  disabled={!textInput.trim()}
+                  disabled={!textInput.trim() || !loggedIn}
                   className="brutal-btn flex items-center gap-2 disabled:opacity-30"
+                  title={!loggedIn ? 'Login required' : undefined}
                 >
                   PROCEED TO STUDIO
                 </button>
@@ -207,20 +213,21 @@ export function Home() {
               style={{
                 borderColor: dragActive ? 'var(--accent-secondary)' : 'var(--accent)',
                 backgroundColor: dragActive ? 'var(--bg-card)' : 'transparent',
-                opacity: uploading ? 0.6 : 1,
-                pointerEvents: uploading ? 'none' : 'auto',
+                opacity: (uploading || !loggedIn) ? 0.6 : 1,
+                pointerEvents: (uploading || !loggedIn) ? 'none' : 'auto',
               }}
               onDragEnter={handleDrag}
               onDragLeave={handleDrag}
               onDragOver={handleDrag}
               onDrop={handleDrop}
+              title={!loggedIn ? 'Login required' : undefined}
             >
               <input
                 type="file"
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                 onChange={handleFileInput}
                 accept={inputType === 'image' ? 'image/*' : 'audio/*'}
-                disabled={uploading}
+                disabled={uploading || !loggedIn}
               />
 
               <div className="flex items-center gap-4 mb-6 pointer-events-none" style={{ color: 'var(--accent)' }}>
