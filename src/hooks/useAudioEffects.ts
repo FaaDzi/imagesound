@@ -214,7 +214,7 @@ export function useAudioEffects(audioRef: RefObject<HTMLAudioElement>) {
     setIsRendering(true);
     try {
       // Fetch source audio.
-      const res = await fetch(audioUrl(jobId));
+      const res = await fetch(audioUrl(jobId), { credentials: 'include' });
       if (!res.ok) throw new Error('Failed to fetch audio for rendering.');
       const arrBuf = await res.arrayBuffer();
 
@@ -252,9 +252,10 @@ export function useAudioEffects(audioRef: RefObject<HTMLAudioElement>) {
 
       // Non-WAV: ask the backend to convert the processed WAV.
       const convRes = await fetch(`${API_BASE}/convert?format=${format}`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'audio/wav' },
-        body:    wavBlob,
+        method:      'POST',
+        credentials: 'include',
+        headers:     { 'Content-Type': 'audio/wav' },
+        body:        wavBlob,
       });
       if (!convRes.ok) {
         // Graceful fallback — WAV rather than a silent failure.
