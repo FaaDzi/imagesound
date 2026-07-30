@@ -20,6 +20,7 @@ export function Home() {
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (!loggedIn || uploading) return;
     if (e.type === 'dragenter' || e.type === 'dragover') {
       setDragActive(true);
     } else if (e.type === 'dragleave') {
@@ -30,6 +31,7 @@ export function Home() {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (!loggedIn || uploading) return;
     setDragActive(false);
     handleFileRegistration(e.dataTransfer.files);
   };
