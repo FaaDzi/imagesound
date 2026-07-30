@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Trash2, Music, Database, Play, Pause, Download, Save, FileMusic, Shuffle, Check, AlertTriangle } from 'lucide-react';
 import { getLibrary, discardJob, saveJob, audioUrl, imageUrl, downloadSong, convertToMidi, downloadMidi, midiPreviewUrl, LibraryItem, DOWNLOAD_FORMATS, DownloadFormat } from '../api';
+import { useAuth } from '../context/AuthContext';
 
 function formatTimeRemaining(expiresAt: string): string {
   const ms = new Date(expiresAt).getTime() - Date.now();
@@ -28,6 +29,8 @@ function formatTime(s: number): string {
 
 export function Library() {
   const navigate = useNavigate();
+  const { username } = useAuth();
+  const loggedIn = !!username;
   const [items, setItems] = useState<LibraryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -365,10 +368,11 @@ export function Library() {
                       {/* Play sonified WAV preview */}
                       <button
                         onClick={() => handlePlay(item.id, midiPreviewUrl(item.id))}
-                        title={isThisPlaying && isAudioPlaying ? 'Pause MIDI preview' : 'Play MIDI preview (synth rendering)'}
-                        className="p-1 px-3 border text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-1"
+                        disabled={!loggedIn}
+                        title={!loggedIn ? 'Login required' : (isThisPlaying && isAudioPlaying ? 'Pause MIDI preview' : 'Play MIDI preview (synth rendering)')}
+                        className="p-1 px-3 border text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
                         style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
-                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--bg)'; }}
+                        onMouseEnter={e => { if (loggedIn) { e.currentTarget.style.backgroundColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--bg)'; } }}
                         onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--accent)'; }}
                       >
                         {isThisPlaying && isAudioPlaying ? <Pause size={12} /> : <Play size={12} />}
@@ -377,10 +381,11 @@ export function Library() {
                       {/* Download MIDI */}
                       <button
                         onClick={(e) => handleDownloadMidi(item.id, item.prompt, e)}
-                        title="Download MIDI file"
-                        className="p-1 px-3 border text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-1"
+                        disabled={!loggedIn}
+                        title={!loggedIn ? 'Login required' : 'Download MIDI file'}
+                        className="p-1 px-3 border text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
                         style={{ borderColor: 'var(--accent-tertiary)', color: 'var(--accent-tertiary)' }}
-                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--accent-tertiary)'; e.currentTarget.style.color = 'var(--bg)'; }}
+                        onMouseEnter={e => { if (loggedIn) { e.currentTarget.style.backgroundColor = 'var(--accent-tertiary)'; e.currentTarget.style.color = 'var(--bg)'; } }}
                         onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--accent-tertiary)'; }}
                       >
                         <Download size={12} /> MIDI
@@ -401,10 +406,11 @@ export function Library() {
                       {/* Play / Pause */}
                       <button
                         onClick={() => handlePlay(item.id, audioUrl(item.id))}
-                        title={isThisPlaying && isAudioPlaying ? 'Pause' : 'Play'}
-                        className="p-1 px-3 border text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-1"
+                        disabled={!loggedIn}
+                        title={!loggedIn ? 'Login required' : (isThisPlaying && isAudioPlaying ? 'Pause' : 'Play')}
+                        className="p-1 px-3 border text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
                         style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
-                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--bg)'; }}
+                        onMouseEnter={e => { if (loggedIn) { e.currentTarget.style.backgroundColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--bg)'; } }}
                         onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--accent)'; }}
                       >
                         {isThisPlaying && isAudioPlaying ? <Pause size={12} /> : <Play size={12} />}
@@ -414,10 +420,11 @@ export function Library() {
                       {/* Remix: use this song's audio as a melody reference for a new generation */}
                       <button
                         onClick={(e) => handleRemix(item.id, item.prompt, e)}
-                        title="Use as melody reference for a new song"
-                        className="p-1 px-3 border text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-1"
+                        disabled={!loggedIn}
+                        title={!loggedIn ? 'Login required' : 'Use as melody reference for a new song'}
+                        className="p-1 px-3 border text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
                         style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
-                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--bg)'; }}
+                        onMouseEnter={e => { if (loggedIn) { e.currentTarget.style.backgroundColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--bg)'; } }}
                         onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--accent)'; }}
                       >
                         <Shuffle size={12} />
@@ -439,9 +446,10 @@ export function Library() {
                                 e.stopPropagation();
                                 setDownloadFormats(prev => ({ ...prev, [item.id]: e.target.value as DownloadFormat | 'midi' }));
                               }}
-                              className="border text-xs font-bold font-mono uppercase px-1 py-1 cursor-pointer"
+                              disabled={!loggedIn}
+                              className="border text-xs font-bold font-mono uppercase px-1 py-1 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                               style={{ borderColor: 'var(--accent-tertiary)', color: 'var(--accent-tertiary)', backgroundColor: 'var(--bg)', outline: 'none' }}
-                              title="Export format"
+                              title={!loggedIn ? 'Login required' : 'Export format'}
                             >
                               {DOWNLOAD_FORMATS.map(f => (
                                 <option key={f} value={f}>{f.toUpperCase()}</option>
@@ -453,21 +461,23 @@ export function Library() {
                             {/* Single action button: Download (audio) or Convert (MIDI) */}
                             <button
                               onClick={(e) => isMidiSelected ? handleConvertToMidi(item.id, e) : handleDownload(item.id, item.prompt, e)}
-                              disabled={isMidiSelected && midiState === 'converting'}
+                              disabled={!loggedIn || (isMidiSelected && midiState === 'converting')}
                               title={
-                                isMidiSelected
-                                  ? (midiState === 'failed' ? 'MIDI conversion failed — retry' : 'Convert to MIDI')
-                                  : `Download ${selectedFmt.toUpperCase()}`
+                                !loggedIn
+                                  ? 'Login required'
+                                  : isMidiSelected
+                                    ? (midiState === 'failed' ? 'MIDI conversion failed — retry' : 'Convert to MIDI')
+                                    : `Download ${selectedFmt.toUpperCase()}`
                               }
                               className="p-1 px-3 border text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-1"
                               style={{
                                 borderColor: btnColor,
                                 color: btnColor,
-                                opacity: isMidiSelected && midiState === 'converting' ? 0.5 : 1,
-                                cursor: isMidiSelected && midiState === 'converting' ? 'not-allowed' : 'pointer',
+                                opacity: !loggedIn || (isMidiSelected && midiState === 'converting') ? 0.5 : 1,
+                                cursor: !loggedIn || (isMidiSelected && midiState === 'converting') ? 'not-allowed' : 'pointer',
                               }}
                               onMouseEnter={e => {
-                                if (!(isMidiSelected && midiState === 'converting')) {
+                                if (loggedIn && !(isMidiSelected && midiState === 'converting')) {
                                   e.currentTarget.style.backgroundColor = btnColor;
                                   e.currentTarget.style.color = 'var(--bg)';
                                 }
@@ -492,10 +502,11 @@ export function Library() {
                   {!item.saved && (
                     <button
                       onClick={(e) => handleSave(item.id, e)}
-                      title="Save to library"
-                      className="p-1 px-3 border text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-1"
+                      disabled={!loggedIn}
+                      title={!loggedIn ? 'Login required' : 'Save to library'}
+                      className="p-1 px-3 border text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
                       style={{ borderColor: 'var(--accent-secondary)', color: 'var(--accent-secondary)' }}
-                      onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--accent-secondary)'; e.currentTarget.style.color = 'var(--bg)'; }}
+                      onMouseEnter={e => { if (loggedIn) { e.currentTarget.style.backgroundColor = 'var(--accent-secondary)'; e.currentTarget.style.color = 'var(--bg)'; } }}
                       onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--accent-secondary)'; }}
                     >
                       <Save size={12} /> SAVE
@@ -505,10 +516,11 @@ export function Library() {
                   {/* Purge / Discard */}
                   <button
                     onClick={(e) => handleDiscard(item.id, e)}
-                    title="Delete"
-                    className="p-1 px-3 border text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-1"
+                    disabled={!loggedIn}
+                    title={!loggedIn ? 'Login required' : 'Delete'}
+                    className="p-1 px-3 border text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
                     style={{ borderColor: 'red', color: 'red' }}
-                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'red'; e.currentTarget.style.color = 'var(--bg)'; }}
+                    onMouseEnter={e => { if (loggedIn) { e.currentTarget.style.backgroundColor = 'red'; e.currentTarget.style.color = 'var(--bg)'; } }}
                     onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'red'; }}
                   >
                     <Trash2 size={12} /> PURGE
