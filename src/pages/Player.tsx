@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useLocation } from 'react-router-dom';
-import { Play, Pause, FastForward, Rewind, AlertTriangle } from 'lucide-react';
+import { useLocation, Link } from 'react-router-dom';
+import { Play, Pause, FastForward, Rewind, AlertTriangle, Lock } from 'lucide-react';
 import { describeImage, saveJob, discardJob, audioUrl, downloadSong, DownloadFormat } from '../api';
 import { usePromptHistory } from '../hooks/usePromptHistory';
 import { useGeneration } from '../hooks/useGeneration';
 import { useInProgress } from '../context/InProgressContext';
+import { useAuth } from '../context/AuthContext';
 import { useAudioEffects } from '../hooks/useAudioEffects';
 import { SourcePreview } from '../components/player/SourcePreview';
 import { ArcEditor, ARC_PRESETS, samplePreset } from '../components/player/ArcEditor';
@@ -39,6 +40,7 @@ export function Player() {
   } | null;
 
   const { item, setItem, updatePrompt, clearItem } = useInProgress();
+  const { username } = useAuth();
   const audioRef = useRef<HTMLAudioElement>(null);
   const describedForRef = useRef<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -433,23 +435,42 @@ export function Player() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="relative">
+        {!username && (
+          <div
+            className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 text-center px-6"
+            style={{ backgroundColor: 'rgba(0, 0, 0, 0.88)' }}
+          >
+            <Lock className="w-12 h-12" style={{ color: 'var(--accent)' }} strokeWidth={1} />
+            <p className="text-lg font-bold uppercase tracking-widest" style={{ color: 'var(--accent)' }}>
+              LOGIN REQUIRED
+            </p>
+            <p className="text-xs uppercase tracking-wide opacity-70 max-w-xs" style={{ color: 'var(--text-muted)' }}>
+              The studio's generation controls are locked until you log in.
+            </p>
+            <Link to="/login" className="brutal-btn text-xs">
+              GO TO LOGIN
+            </Link>
+          </div>
+        )}
 
-        {/* LEFT COL: ORIGINAL SOURCE */}
-        <SourcePreview
-          filename={filename}
-          imageUrl={url}
-          rawUrl={source?.url ?? null}
-          fileId={fileId}
-          isImage={isImage}
-          isText={isText}
-          isAudio={isAudio}
-          mode={mode}
-          textPreview={textPreview}
-        />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-        {/* RIGHT COL: VISUALIZER & CONTROLS */}
-        <div className="col-span-1 lg:col-span-2 flex flex-col gap-8">
+          {/* LEFT COL: ORIGINAL SOURCE */}
+          <SourcePreview
+            filename={filename}
+            imageUrl={url}
+            rawUrl={source?.url ?? null}
+            fileId={fileId}
+            isImage={isImage}
+            isText={isText}
+            isAudio={isAudio}
+            mode={mode}
+            textPreview={textPreview}
+          />
+
+          {/* RIGHT COL: VISUALIZER & CONTROLS */}
+          <div className="col-span-1 lg:col-span-2 flex flex-col gap-8">
 
           {/* DUAL-MODE PANEL: ARC_EDITOR (long song, not done) or WAVEFORM_OUTPUT (playback / short) */}
           <div data-collider className="border-4 p-4 h-64 relative overflow-hidden flex flex-col" style={{ borderColor: 'var(--accent)', backgroundColor: 'var(--bg)' }}>
@@ -875,6 +896,7 @@ export function Player() {
           />
 
         </div>
+      </div>
       </div>
     </div>
   );
