@@ -21,7 +21,7 @@ function slugFilename(prompt: string | null | undefined, id: string): string {
 
 export async function downloadSong(id: string, prompt?: string | null, format: DownloadFormat = 'mp3'): Promise<void> {
   const dlUrl = `${API_BASE}/download/${encodeURIComponent(id)}?format=${format}`;
-  const res = await fetch(dlUrl);
+  const res = await fetch(dlUrl, { credentials: 'include' });
   if (!res.ok) throw new Error('Download failed.');
   const blob = await res.blob();
   triggerDownload(blob, `${slugFilename(prompt, id)}.${format}`);
@@ -36,7 +36,7 @@ export interface UploadResult {
 export async function uploadFile(file: File): Promise<UploadResult> {
   const form = new FormData();
   form.append('file', file);
-  const res = await fetch(`${API_BASE}/upload`, { method: 'POST', body: form });
+  const res = await fetch(`${API_BASE}/upload`, { method: 'POST', credentials: 'include', body: form });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Upload failed.' }));
     throw new Error((err as { detail?: string }).detail ?? 'Upload failed.');
@@ -80,6 +80,7 @@ export async function generateSong(opts: {
 }): Promise<GenerateResult> {
   const res = await fetch(`${API_BASE}/generate`, {
     method: 'POST',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(opts),
   });
@@ -91,7 +92,7 @@ export async function generateSong(opts: {
 }
 
 export async function getStatus(id: string): Promise<StatusResult> {
-  const res = await fetch(`${API_BASE}/status/${encodeURIComponent(id)}`);
+  const res = await fetch(`${API_BASE}/status/${encodeURIComponent(id)}`, { credentials: 'include' });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Status check failed.' }));
     throw new Error((err as { detail?: string }).detail ?? 'Status check failed.');
@@ -115,7 +116,7 @@ export interface LibraryItem {
 }
 
 export async function getLibrary(): Promise<LibraryItem[]> {
-  const res = await fetch(`${API_BASE}/library`);
+  const res = await fetch(`${API_BASE}/library`, { credentials: 'include' });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Failed to load library.' }));
     throw new Error((err as { detail?: string }).detail ?? 'Failed to load library.');
@@ -126,7 +127,7 @@ export async function getLibrary(): Promise<LibraryItem[]> {
 // ---------- Cancel ----------
 
 export async function cancelJob(id: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/cancel/${encodeURIComponent(id)}`, { method: 'POST' });
+  const res = await fetch(`${API_BASE}/cancel/${encodeURIComponent(id)}`, { method: 'POST', credentials: 'include' });
   if (!res.ok && res.status !== 409) {
     // 409 = already in terminal state (failed/cancelled) — treat as no-op.
     const err = await res.json().catch(() => ({ detail: 'Cancel failed.' }));
@@ -137,7 +138,7 @@ export async function cancelJob(id: string): Promise<void> {
 // ---------- Save / Discard ----------
 
 export async function saveJob(id: string): Promise<{ id: string; saved: boolean; expires_at: string }> {
-  const res = await fetch(`${API_BASE}/save/${encodeURIComponent(id)}`, { method: 'POST' });
+  const res = await fetch(`${API_BASE}/save/${encodeURIComponent(id)}`, { method: 'POST', credentials: 'include' });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Save failed.' }));
     throw new Error((err as { detail?: string }).detail ?? 'Save failed.');
@@ -146,7 +147,7 @@ export async function saveJob(id: string): Promise<{ id: string; saved: boolean;
 }
 
 export async function discardJob(id: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/discard/${encodeURIComponent(id)}`, { method: 'POST' });
+  const res = await fetch(`${API_BASE}/discard/${encodeURIComponent(id)}`, { method: 'POST', credentials: 'include' });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Discard failed.' }));
     throw new Error((err as { detail?: string }).detail ?? 'Discard failed.');
@@ -158,6 +159,7 @@ export async function discardJob(id: string): Promise<void> {
 export async function convertToMidi(sourceId: string): Promise<{ id: string; status: string }> {
   const res = await fetch(`${API_BASE}/midi/convert/${encodeURIComponent(sourceId)}`, {
     method: 'POST',
+    credentials: 'include',
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'MIDI conversion failed.' }));
@@ -172,7 +174,7 @@ export function midiPreviewUrl(id: string): string {
 
 export async function downloadMidi(id: string, prompt?: string | null): Promise<void> {
   const dlUrl = `${API_BASE}/download/${encodeURIComponent(id)}?format=midi`;
-  const res = await fetch(dlUrl);
+  const res = await fetch(dlUrl, { credentials: 'include' });
   if (!res.ok) throw new Error('MIDI download failed.');
   const blob = await res.blob();
   triggerDownload(blob, `${slugFilename(prompt, id)}.mid`);
@@ -183,6 +185,7 @@ export async function downloadMidi(id: string, prompt?: string | null): Promise<
 export async function describeImage(id: string, signal?: AbortSignal): Promise<string> {
   const res = await fetch(`${API_BASE}/describe`, {
     method: 'POST',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id }),
     signal,
@@ -193,4 +196,34 @@ export async function describeImage(id: string, signal?: AbortSignal): Promise<s
   }
   const data = (await res.json()) as { prompt: string };
   return data.prompt;
+}
+
+// ---------- Auth ----------
+
+export interface MeResult {
+  username: string;
+}
+
+export async function getMe(): Promise<MeResult> {
+  const res = await fetch(`${API_BASE}/auth/me`, { credentials: 'include' });
+  if (!res.ok) throw new Error('Not logged in.');
+  return res.json() as Promise<MeResult>;
+}
+
+export async function loginRequest(username: string, password: string): Promise<MeResult> {
+  const res = await fetch(`${API_BASE}/auth/login`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Invalid username or password.' }));
+    throw new Error((err as { detail?: string }).detail ?? 'Invalid username or password.');
+  }
+  return res.json() as Promise<MeResult>;
+}
+
+export async function logoutRequest(): Promise<void> {
+  await fetch(`${API_BASE}/auth/logout`, { method: 'POST', credentials: 'include' });
 }
