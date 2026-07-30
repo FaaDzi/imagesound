@@ -2,15 +2,25 @@
 
 ## Purpose
 
-Gate the whole app behind a login, ahead of the first public GitHub push, so the
-hosted instance is only usable by people who know a valid username/password —
-not the general public. This is explicitly a stopgap: one seeded user account
-for now, with real multi-user registration planned as separate future work.
-`backend/app/routers/audio.py`'s existing `# TODO: add AND owner_id=? here
-once auth exists` comment (and the `owner_id` column already sitting unused in
-the `files` table) both anticipated exactly this — this feature is what makes
-that TODO actionable, though actually wiring `owner_id` into every router's
-queries is out of scope for this iteration (see Non-goals).
+Let anyone browse the app (Home, Library, the Player/Studio page) to see how
+it works and what it produces, but require a valid login before they can
+actually *use* it — upload/type a prompt, generate a song, play or download
+any audio, or interact with the Player's generation controls. This is
+explicitly a stopgap: one seeded user account for now, with real multi-user
+registration planned as separate future work. `backend/app/routers/audio.py`'s
+existing `# TODO: add AND owner_id=? here once auth exists` comment (and the
+`owner_id` column already sitting unused in the `files` table) both
+anticipated exactly this — this feature is what makes that TODO actionable,
+though actually wiring `owner_id` into every router's queries is out of scope
+for this iteration (see Non-goals).
+
+**Revision note:** the first pass of this design gated the entire app behind
+a hard redirect-to-`/login` wall. That's been revised (still pre-implementation)
+to the "browse freely, block actions" model described above and in the
+Architecture/Frontend sections below — a curious visitor can see the UI and
+the library's contents, but every state-changing or content-serving action
+still requires login, enforced independently by the backend regardless of
+what the frontend shows.
 
 ## Non-goals (explicitly out of scope for this iteration)
 
@@ -69,8 +79,9 @@ here.
   make brute-forcing the known username `test` impractical.
 - `POST /auth/logout` — clears the session, returns 200.
 - `GET /auth/me` — returns `{"username": ...}` if the session is valid, 401
-  otherwise. This is what the frontend polls once on load to decide whether
-  to render the app or redirect to `/login`.
+  otherwise. This is what the frontend polls once on load to populate
+  `AuthContext`, which every page then reads to decide what's interactive
+  (see Frontend section) — it doesn't gate navigation to any page.
 
 ### Session mechanism: Starlette `SessionMiddleware`
 
@@ -96,18 +107,51 @@ key. Cookie settings:
   with a dev-only fallback default and a code comment making clear that
   fallback must never be relied on for anything beyond local dev.
 
-### Enforcement: a new global auth-gate middleware
+### Enforcement: a new auth-gate middleware, allowlisting *public* paths
 
-A small middleware (added in `main.py`, after CORS) checks every incoming
-request: if the path is `/auth/login`, `/auth/logout`, or `/health`, let it
-through unconditionally; otherwise, require a valid session (same check
-`GET /auth/me` uses) or return 401. This is what makes the gate apply to the
-*entire* app, including the API directly — not just the frontend's own
-page-level redirect, which alone could be bypassed by hitting the API
-straight from curl/Postman. (Everything not explicitly listed is gated by
-default, including FastAPI's own auto-generated `/docs`/`/openapi.json` —
-consistent with "select people only," not just "select people can see the
-generated songs.")
+Unlike the original all-or-nothing design, most GET endpoints that only
+*display* things (not stream/serve actual audio, or mutate anything) are
+public — this is what lets a visitor browse Home/Library/Player without
+logging in. Everything else requires a valid session. A small middleware
+(added in `main.py`, after CORS) checks every incoming request against an
+explicit allowlist of public paths/methods; anything not on the allowlist
+requires a valid session (same check `GET /auth/me` uses) or returns 401.
+
+**Public (no login required):**
+- `GET /library` — song metadata (id, prompt, duration, thumbnail
+  reference, `fad_verdict`, etc.) so the Library page can render real cards
+  for a logged-out visitor.
+- `GET /image/{id}` — thumbnails referenced by those cards (source images,
+  not generated audio) — needed for the cards to look like the real thing,
+  not empty boxes.
+- `GET /health`
+- `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`
+
+**Protected (login required):**
+- `POST /upload`, `POST /generate`, `POST /describe` — the actual
+  input/generation actions.
+- `POST /cancel/{id}`, `POST /save/{id}`, `POST /discard/{id}` — job
+  mutation.
+- `GET /audio/{id}` — actual audio streaming/playback. This is the specific
+  endpoint that makes "cannot look up [i.e. listen to] the library of
+  sound" true even though the library *list* itself is public.
+- `GET /download/{id}` — file download.
+- `POST /midi/convert/{id}`, `GET /midi/preview/{id}` — MIDI conversion.
+- `GET /status/{id}` — job status polling; moot for a logged-out visitor
+  anyway since they can't start a job, but gated for consistency (no
+  legitimate use of this endpoint exists without a job to check on).
+- Everything else not explicitly listed above, including FastAPI's own
+  auto-generated `/docs`/`/openapi.json` — deny-by-default, not an
+  allowlist of things to block, so a future new endpoint is protected
+  unless someone deliberately adds it to the public list.
+
+This split is what makes the frontend's "visible but disabled" treatment
+*true* rather than cosmetic: even if someone bypasses the UI entirely and
+calls `POST /generate` or `GET /audio/{id}` directly with curl/Postman and
+no session cookie, the backend independently rejects it. The frontend's
+disabled buttons and Player overlay (see Frontend section) are a UX nicety
+on top of a real, independently-enforced backend gate — not a substitute
+for one.
 
 **Middleware ordering matters**: this auth-gate middleware must let CORS
 preflight `OPTIONS` requests through unconditionally (they carry no cookie
@@ -146,13 +190,42 @@ mount, calls `GET /auth/me` once to determine whether a valid session
 exists; exposes `{ username, loading, login(), logout() }` to the rest of
 the app.
 
-### New `ProtectedRoute` wrapper
+### No route-level gate — Home, Library, and Player all render for everyone
 
-Wraps the three existing routes (`/`, `/player`, `/library`) in
-`src/App.tsx`. While `AuthContext` is still resolving the initial `/auth/me`
-check, renders nothing (or a minimal loading state) rather than
-flashing the real app before redirecting. Once resolved: renders the route
-normally if logged in, or redirects to `/login` if not.
+All three existing routes (`/`, `/player`, `/library`) stay reachable
+without login; `AuthContext`'s `username`/`loading` state is read *within*
+each page to decide what's interactive, not to block navigation to the page
+itself.
+
+- **Home** (`src/pages/Home.tsx`): the text-prompt input, image/audio
+  upload dropzone, and "PROCEED TO STUDIO" button are all rendered
+  normally but `disabled` when logged out (grayed out via existing styling
+  conventions), with an `onClick`/`onFocus` handler that shows a brief
+  "login required" inline message instead of performing the real action.
+- **Library** (`src/pages/Library.tsx`): song cards render fully (title,
+  duration, thumbnail, `fad_verdict` badge — same `GET /library` data
+  either way, since that endpoint is public). Play and Download buttons on
+  each card are `disabled` when logged out, with the same "login required"
+  message on click instead of calling `GET /audio/{id}`/`GET
+  /download/{id}`.
+- **Player** (`src/pages/Player.tsx`): the functional area (everything
+  Task 7 of the repo-cleanup plan split into `SourcePreview`, `ArcEditor`,
+  `EffectsPanel`, `GeneratePanel`) gets a full-coverage opaque black overlay
+  when logged out, with a centered lock icon/message and a link to
+  `/login` — a stronger treatment than Home/Library's per-field disabling,
+  since this is explicitly the "main" feature curious visitors would want
+  to poke at. The page's own chrome (nav, page title) stays visible above
+  the overlay.
+
+### Persistent login indicator (Navigation)
+
+`src/components/Navigation.tsx` gains a persistent element (top right,
+matching the existing nav bar's other status indicators like the theme
+toggle): a "LOGIN" link when logged out, or the username + a logout button
+when logged in. This is the one always-visible, unambiguous path to
+actually log in — the per-page disabled states don't need to each duplicate
+a full login form, they just need to make clear *that* login is required
+and let the persistent nav element be where it actually happens.
 
 ### `src/api.ts` change
 
@@ -183,8 +256,10 @@ tokens rather than introducing a new look.
 |---|---|
 | Wrong username or wrong password | 401, generic "invalid username or password" — never reveals which |
 | Too many rapid login attempts | Rate-limited (429) via existing `slowapi` limiter |
-| No/invalid/expired session cookie, any protected route | 401 from the API; frontend redirects to `/login` |
-| Valid session, `/auth/login`/`/auth/logout`/`/health` | Always reachable regardless of session state (login must be reachable to log in; health check must stay unauthenticated for monitoring) |
+| No/invalid/expired session, calling a protected endpoint directly (curl/Postman/devtools) | 401 from the API — enforced independently of whatever the frontend shows |
+| No/invalid/expired session, using the frontend UI | Relevant controls render disabled with a "login required" message (Home/Library) or the Player's functional area is covered by an opaque overlay; navigation between pages is never blocked |
+| Calling a public endpoint (`GET /library`, `GET /image/{id}`, `GET /health`) with no session | Succeeds normally — these are intentionally open regardless of auth state |
+| `/auth/login`/`/auth/logout`/`/auth/me`/`/health` | Always reachable regardless of session state (login must be reachable to log in; health check must stay unauthenticated for monitoring) |
 | Session cookie present but tampered/forged | Signature verification fails → treated identically to "no session" |
 
 ## Testing approach
@@ -193,13 +268,23 @@ tokens rather than introducing a new look.
   confirm the session cookie is set and `GET /auth/me` then succeeds.
 - Real login attempt with wrong password, confirm generic 401 and no cookie
   set.
-- Confirm hitting a protected endpoint directly (e.g. `curl
-  http://127.0.0.1:8000/library` with no cookie) returns 401 — proving the
-  gate isn't just a frontend redirect that the API itself ignores.
-- Confirm the frontend redirects an unauthenticated browser to `/login`
-  before rendering Home/Player/Library, and that a logged-in browser reaches
-  the real app normally.
-- Confirm logout clears the session (subsequent `/auth/me` call fails, next
-  protected-page load redirects to `/login` again).
-- Browser screenshots of the login page in both light and dark theme, plus
-  the failed-attempt error state.
+- With no session cookie: confirm `GET /library` and `GET /image/{id}`
+  succeed (public), and confirm `POST /generate`, `POST /upload`, `GET
+  /audio/{id}`, `GET /download/{id}`, `POST /save/{id}` all return 401 when
+  called directly (curl/Postman, no cookie) — proving the gate is real at
+  the API level, not just a frontend visual state.
+- Browser, logged out: confirm Home/Library/Player all render and are
+  navigable (no redirect-to-login), confirm Home's inputs and Library's
+  play/download buttons are visibly disabled and show a login prompt on
+  click instead of performing the real action, confirm Player's functional
+  area is covered by the opaque overlay.
+- Browser, logged in: confirm the same three pages are fully interactive —
+  overlay gone, buttons enabled, a real generation/upload/play/download all
+  work end-to-end.
+- Confirm logout clears the session (subsequent `/auth/me` call fails, the
+  frontend reverts to the logged-out disabled/overlay state without
+  needing a page reload, if reasonable to verify; a reload-based check is
+  acceptable if not).
+- Browser screenshots: the login page in both light and dark theme, the
+  failed-attempt error state, Home/Library logged-out (disabled controls),
+  Player logged-out (overlay), and Player logged-in (overlay gone).
