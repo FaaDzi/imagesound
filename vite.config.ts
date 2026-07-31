@@ -44,7 +44,7 @@ export default defineConfig(() => {
       // dev without --tunnel is unaffected -- src/api.ts talks to
       // http://localhost:8000 directly unless VITE_API_BASE overrides it.
       proxy: {
-        '/api': {
+        '^/api/': {
           target: 'http://localhost:8000',
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api/, ''),
@@ -71,6 +71,13 @@ export default defineConfig(() => {
       // localhost:3000 today, tunneling just makes it internet-reachable).
       fs: {
         deny: [
+          // Vite's own defaults -- MUST stay here since setting `deny` at all
+          // replaces (does not merge with) Vite's built-in denylist.
+          '.env',
+          '.env.*',
+          '*.{crt,pem}',
+          '**/.git/**',
+          // project-specific
           '**/backend/**',
           '**/pipeline/**',
           '**/.venv/**',
@@ -81,6 +88,10 @@ export default defineConfig(() => {
           '**/*.db-shm',
           '**/*.db-journal',
           '**/*.pid',
+          '**/*.log',
+          '**/*.csv',
+          '**/.superpowers/**',
+          '**/docs/**',
         ],
       },
     },

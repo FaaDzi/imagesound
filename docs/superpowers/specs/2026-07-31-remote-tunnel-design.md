@@ -76,7 +76,7 @@ Visitor's browser
 ```ts
 server: {
   proxy: {
-    '/api': {
+    '^/api/': {
       target: 'http://localhost:8000',
       changeOrigin: true,
       rewrite: (path) => path.replace(/^\/api/, ''),
@@ -85,17 +85,53 @@ server: {
   // ...existing hmr/watch config unchanged
 }
 ```
-This only affects requests that actually hit `/api/*` — nothing else about
-local dev changes. When `VITE_API_BASE` is unset (today's normal local
-flow), `src/api.ts` still defaults to `http://localhost:8000` directly and
-never touches this proxy at all.
+The proxy key uses Vite's regex form (`^/api/`, not the plain string
+`/api`) so only genuine `/api/*` paths match — a plain-string key does a
+prefix match, which would also (mis)route a hypothetical `/apidocs` through
+the `/^\/api/` rewrite. This only affects requests that actually hit
+`/api/*` — nothing else about local dev changes. When `VITE_API_BASE` is
+unset (today's normal local flow), `src/api.ts` still defaults to
+`http://localhost:8000` directly and never touches this proxy at all.
+
+`vite.config.ts` also sets `server.fs.deny` to block Vite's static file
+server from ever serving sensitive paths (`backend/**`, `*.py`, `*.db*`,
+`*.log`, `*.csv`, `.superpowers/**`, `docs/**`, etc.) — this matters on
+plain `localhost:3000` too, not just when tunneled. **Important:** setting
+`fs.deny` at all *replaces* Vite's own built-in denylist rather than
+extending it — Vite does not merge config arrays. An earlier version of
+this file set `fs.deny` to only the project-specific entries, which
+silently discarded Vite's built-in defaults (`.env`, `.env.*`,
+`*.{crt,pem}`, `**/.git/**`) and re-exposed `.env` and `.git/` over the
+dev server. The fix is to always include those four Vite-default patterns
+explicitly alongside the project-specific entries whenever `fs.deny` is
+touched.
 
 **2. `run.py`** — add a `--tunnel` CLI flag.
 - Plain `python run.py` behaves exactly as it does today — unaffected.
 - `python run.py --tunnel`:
+  - Calls `load_dotenv()` (via `python-dotenv`, already a dependency) early
+    at startup, mirroring `backend/app/config.py`, so a `SESSION_SECRET_KEY`
+    set in the project's `.env` file is visible to `run.py` itself, not
+    just the backend subprocess.
+  - Refuses to start (hard precondition check, before anything else spins
+    up) unless `SESSION_SECRET_KEY` is set in the environment to something
+    other than the hardcoded insecure default in `backend/app/config.py` —
+    without this, anyone could forge a valid login session and bypass the
+    password gate on a publicly tunneled instance.
   - Sets `VITE_API_BASE=/api` in the frontend subprocess's environment
     before launching it (so the browser bundle resolves API calls to the
     relative `/api` path instead of `http://localhost:8000`).
+  - Before starting the tunnel, actively polls
+    `http://localhost:3000/api/health` (the same hostname/URL a real tunnel
+    request would use) for up to ~20s, waiting for an HTTP 200 with
+    `"status":"ok"` in the body. This replaces relying on `--strictPort`
+    alone to assume port 3000 is occupied by our own Vite process —
+    `--strictPort` only proves *something* bound the port, not that it's
+    our server reachable via the same DNS/socket path cloudflared will use
+    (Windows' IPv4/IPv6 dual-stack preference can otherwise let an
+    unrelated process on the same port win). If the check doesn't pass
+    within the timeout, the tunnel is skipped with a warning; backend and
+    frontend keep running locally regardless.
   - Starts a third managed subprocess:
     `cloudflared tunnel --url http://localhost:3000`.
   - Captures the tunnel process's output, extracts the assigned

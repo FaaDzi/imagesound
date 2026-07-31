@@ -9,7 +9,21 @@ import sys
 import os
 import signal
 import threading
+import time
+import urllib.request
+import urllib.error
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load the project's .env file (if present) so SESSION_SECRET_KEY and other
+# values set there are visible via os.environ -- mirrors backend/app/config.py,
+# which already calls load_dotenv(). Without this, a user who follows this
+# launcher's own advice to "set SESSION_SECRET_KEY in your .env file" would
+# get a permanent false refusal, since this process never saw it otherwise.
+# No-arg load_dotenv() searches upward from the current working directory --
+# since run.py is invoked from the project root, this finds the same root
+# .env the backend already uses.
+load_dotenv()
 
 # --- adjust these to match what you currently type by hand ---
 VENV_PYTHON = os.path.join(".venv", "Scripts", "python.exe")  # Windows path
@@ -119,6 +133,26 @@ def start_tunnel() -> subprocess.Popen:
               "that you have an internet connection. Backend/frontend are still running "
               "locally regardless.")
     return p
+
+
+def _wait_for_frontend_ready(timeout_seconds: float = 20.0) -> bool:
+    """Poll the frontend's /api/health proxy path until it responds correctly,
+    or the timeout elapses. This goes through the SAME hostname resolution a
+    real tunnel request uses, so it correctly detects the case where Windows'
+    IPv4/IPv6 preference routes 'localhost' to an unrelated process instead of
+    our actual Vite dev server (a real failure mode --strictPort alone can't
+    catch), and also confirms the frontend didn't crash on startup."""
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        try:
+            with urllib.request.urlopen("http://localhost:3000/api/health", timeout=2) as resp:
+                body = resp.read().decode("utf-8", errors="replace")
+                if resp.status == 200 and '"status":"ok"' in body.replace(" ", ""):
+                    return True
+        except (urllib.error.URLError, OSError):
+            pass
+        time.sleep(1)
+    return False
 
 
 def _check_tunnel_secret() -> bool:
@@ -247,13 +281,17 @@ if __name__ == "__main__":
     } if TUNNEL_MODE else None
     start("frontend", FRONTEND_CMD, cwd=FRONTEND_DIR, env=frontend_env)
     if TUNNEL_MODE:
-        try:
-            start_tunnel()
-        except OSError as e:
-            print(f"[launcher] WARNING: could not start cloudflared ({e}). Backend/frontend are "
-                  "still running locally on :8000/:3000. If cloudflared was just installed, open "
-                  "a NEW terminal (PATH needs refreshing) and try 'python run.py --tunnel' again "
-                  "after stopping this instance with 'python run.py'.")
+        if _wait_for_frontend_ready():
+            try:
+                start_tunnel()
+            except OSError as e:
+                print(f"[launcher] WARNING: could not start cloudflared ({e}). Backend/frontend are "
+                      "still running locally on :8000/:3000. If cloudflared was just installed, open "
+                      "a NEW terminal (PATH needs refreshing) and try 'python run.py --tunnel' again "
+                      "after stopping this instance with 'python run.py'.")
+        else:
+            print("[launcher] WARNING: frontend did not become healthy within 20s -- skipping "
+                  "tunnel start. Backend/frontend may still be usable locally; check for errors above.")
     _write_pidfile()
     print("[launcher] both running. Backend on :8000, frontend on its dev port.")
     print("[launcher] Ctrl+C to stop both, or run `python run.py` again (even from another terminal) to stop them.")
