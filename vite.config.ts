@@ -59,6 +59,30 @@ export default defineConfig(() => {
       // leave enabled unconditionally -- it only relaxes the host check for
       // *.trycloudflare.com and has no effect otherwise.
       allowedHosts: ['.trycloudflare.com'],
+      // Vite's dev server otherwise serves the ENTIRE project root as static
+      // files, unauthenticated -- with the frontend tunneled to the public
+      // internet (see run.py's --tunnel flag), that means anyone with the
+      // URL could fetch backend/app.db (the SQLite DB, incl. the bcrypt
+      // password hash), backend/storage/converted/<id>.wav (any generated
+      // song, bypassing the backend's own GET /audio/{id} auth gate
+      // entirely), backend/app/config.py, run.py, etc. This denylist blocks
+      // Vite's static file server from ever serving those paths, regardless
+      // of tunnel vs. local-only use (the same request works on plain
+      // localhost:3000 today, tunneling just makes it internet-reachable).
+      fs: {
+        deny: [
+          '**/backend/**',
+          '**/pipeline/**',
+          '**/.venv/**',
+          '**/.venv-fad/**',
+          '**/*.py',
+          '**/*.db',
+          '**/*.db-wal',
+          '**/*.db-shm',
+          '**/*.db-journal',
+          '**/*.pid',
+        ],
+      },
     },
   };
 });

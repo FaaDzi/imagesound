@@ -121,6 +121,22 @@ def start_tunnel() -> subprocess.Popen:
     return p
 
 
+def _check_tunnel_secret() -> bool:
+    """Refuse to tunnel with the insecure default session secret -- anyone who
+    knows it (it's hardcoded in backend/app/config.py) could forge a valid
+    login session and bypass the login gate entirely. Returns True if safe
+    to proceed."""
+    secret = os.environ.get("SESSION_SECRET_KEY", "")
+    if not secret or secret == "dev-only-insecure-secret-change-me":
+        print("[launcher] REFUSING to start tunnel: SESSION_SECRET_KEY is unset or still the")
+        print("[launcher] insecure default. Anyone could forge a login session and bypass the")
+        print("[launcher] password gate. Set a real random value first, e.g.:")
+        print("[launcher]   (PowerShell) $env:SESSION_SECRET_KEY = python -c \"import secrets; print(secrets.token_hex(32))\"")
+        print("[launcher] then set it in your .env file so it's picked up on every future run.")
+        return False
+    return True
+
+
 def stop_all(*_):
     print("\n[launcher] shutting down — killing full process trees to prevent GPU-memory orphans...")
     for name, p in procs:
@@ -215,6 +231,9 @@ def _try_stop_previous_instance() -> bool:
 
 if __name__ == "__main__":
     TUNNEL_MODE = "--tunnel" in sys.argv
+
+    if TUNNEL_MODE and not _check_tunnel_secret():
+        sys.exit(1)
 
     if _try_stop_previous_instance():
         print("[launcher] previous instance stopped. Run again to start it back up.")
