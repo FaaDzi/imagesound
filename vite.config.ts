@@ -37,6 +37,19 @@ export default defineConfig(() => {
           '**/*.db-journal',
         ],
       },
+      // Lets a single tunneled origin (see run.py's --tunnel flag) reach both
+      // the frontend and the backend through one URL: any request to /api/*
+      // is forwarded to the backend with the /api prefix stripped, so the
+      // browser never needs to know about localhost:8000 directly. Local
+      // dev without --tunnel is unaffected -- src/api.ts talks to
+      // http://localhost:8000 directly unless VITE_API_BASE overrides it.
+      proxy: {
+        '/api': {
+          target: 'http://localhost:8000',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api/, ''),
+        },
+      },
     },
   };
 });
