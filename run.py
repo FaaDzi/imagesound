@@ -225,18 +225,6 @@ if __name__ == "__main__":
     start("backend", BACKEND_CMD)
     frontend_env = {
         "VITE_API_BASE": "/api",
-        # Vite 6's dev server rejects any request whose Host header isn't
-        # localhost or explicitly allowlisted (DNS-rebinding protection) --
-        # without this, cloudflared's random *.trycloudflare.com hostname
-        # gets a 403 "Blocked request" for every single request, including
-        # the page itself. This is an internal/undocumented Vite env var
-        # (see node_modules/vite/dist/node/chunks/dep-*.js, search
-        # "__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS") that appends to
-        # server.allowedHosts at config-resolution time; a leading "."
-        # allows any subdomain, so this covers the random quick-tunnel
-        # hostname without needing to know it in advance or edit
-        # vite.config.ts.
-        "__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS": ".trycloudflare.com",
     } if TUNNEL_MODE else None
     start("frontend", FRONTEND_CMD, cwd=FRONTEND_DIR, env=frontend_env)
     if TUNNEL_MODE:

@@ -50,6 +50,15 @@ export default defineConfig(() => {
           rewrite: (path) => path.replace(/^\/api/, ''),
         },
       },
+      // Vite 6's dev server rejects any request whose Host header isn't
+      // localhost or explicitly allowlisted (DNS-rebinding protection) --
+      // without this, cloudflared's random *.trycloudflare.com hostname
+      // (see run.py's --tunnel flag) gets a 403 "Blocked request" for every
+      // request. A leading "." allows any subdomain, covering the random
+      // quick-tunnel hostname without needing to know it in advance. Safe to
+      // leave enabled unconditionally -- it only relaxes the host check for
+      // *.trycloudflare.com and has no effect otherwise.
+      allowedHosts: ['.trycloudflare.com'],
     },
   };
 });
