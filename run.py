@@ -3,10 +3,12 @@
 # terminal — it detects the already-running instance and stops it instead of
 # starting a second one (a start/stop switch). For local testing only.
 import json
+import re
 import subprocess
 import sys
 import os
 import signal
+import threading
 from pathlib import Path
 
 # --- adjust these to match what you currently type by hand ---
@@ -23,13 +25,14 @@ BACKEND_CMD = [
 ]
 FRONTEND_CMD = ["npm", "run", "dev"]
 FRONTEND_DIR = "."   # set to your frontend folder if it's not the project root
+TUNNEL_CMD = ["cloudflared", "tunnel", "--url", "http://localhost:3000"]
 # -------------------------------------------------------------
 
 _PIDFILE = Path(__file__).resolve().parent / ".run.pid"
 # Rough command-line fingerprints used to confirm a recorded PID still refers
 # to a process we actually started — PIDs get reused by the OS over time, so
 # a bare "does this PID exist" check isn't enough to trust before killing it.
-_NAME_HINTS = {"backend": ["uvicorn"], "frontend": ["npm", "vite", "node"]}
+_NAME_HINTS = {"backend": ["uvicorn"], "frontend": ["npm", "vite", "node"], "tunnel": ["cloudflared"]}
 
 procs = []
 
@@ -63,15 +66,58 @@ def _kill_tree(p: subprocess.Popen, name: str) -> None:
             p.kill()
 
 
-def start(name, cmd, cwd=None):
+def start(name, cmd, cwd=None, env=None):
     print(f"[launcher] starting {name}...")
     flags = _BACKEND_FLAGS if name == "backend" else 0
+    proc_env = None
+    if env:
+        proc_env = os.environ.copy()
+        proc_env.update(env)
     # shell=True on Windows helps find 'npm'; backend uses the venv's python directly.
-    p = subprocess.Popen(cmd, cwd=cwd, shell=(name == "frontend"), creationflags=flags)
+    p = subprocess.Popen(cmd, cwd=cwd, shell=(name == "frontend"), creationflags=flags, env=proc_env)
     procs.append((name, p))
     if name == "backend":
         print(f"[launcher] backend pid={p.pid}  "
               f"(if you restart, check Task Manager — kill any lingering python.exe at this PID first)")
+    return p
+
+
+_TUNNEL_URL_RE = re.compile(r'https://[a-zA-Z0-9-]+\.trycloudflare\.com')
+_tunnel_url = {"value": None}
+_tunnel_url_found = threading.Event()
+
+
+def _read_tunnel_output(p: subprocess.Popen) -> None:
+    """Background reader thread: keeps draining cloudflared's combined
+    stdout/stderr (so the pipe never fills and blocks the subprocess) and
+    captures the quick-tunnel URL the first time it appears in the output.
+    """
+    for line in iter(p.stdout.readline, ''):
+        if not line:
+            break
+        match = _TUNNEL_URL_RE.search(line)
+        if match and _tunnel_url["value"] is None:
+            _tunnel_url["value"] = match.group(0)
+            _tunnel_url_found.set()
+
+
+def start_tunnel() -> subprocess.Popen:
+    print("[launcher] starting tunnel...")
+    p = subprocess.Popen(
+        TUNNEL_CMD,
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        text=True, bufsize=1,
+    )
+    procs.append(("tunnel", p))
+    threading.Thread(target=_read_tunnel_output, args=(p,), daemon=True).start()
+    if _tunnel_url_found.wait(timeout=20):
+        print(f"[launcher] tunnel ready: {_tunnel_url['value']}")
+        print("[launcher] share that URL -- it stops working the moment you stop run.py")
+    else:
+        print("[launcher] WARNING: tunnel did not report a URL within 20s. Check that "
+              "cloudflared is installed (winget install --id Cloudflare.cloudflared) and "
+              "that you have an internet connection. Backend/frontend are still running "
+              "locally regardless.")
     return p
 
 
@@ -168,6 +214,8 @@ def _try_stop_previous_instance() -> bool:
 
 
 if __name__ == "__main__":
+    TUNNEL_MODE = "--tunnel" in sys.argv
+
     if _try_stop_previous_instance():
         print("[launcher] previous instance stopped. Run again to start it back up.")
         sys.exit(0)
@@ -175,7 +223,24 @@ if __name__ == "__main__":
     signal.signal(signal.SIGINT, stop_all)
     signal.signal(signal.SIGTERM, stop_all)
     start("backend", BACKEND_CMD)
-    start("frontend", FRONTEND_CMD, cwd=FRONTEND_DIR)
+    frontend_env = {
+        "VITE_API_BASE": "/api",
+        # Vite 6's dev server rejects any request whose Host header isn't
+        # localhost or explicitly allowlisted (DNS-rebinding protection) --
+        # without this, cloudflared's random *.trycloudflare.com hostname
+        # gets a 403 "Blocked request" for every single request, including
+        # the page itself. This is an internal/undocumented Vite env var
+        # (see node_modules/vite/dist/node/chunks/dep-*.js, search
+        # "__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS") that appends to
+        # server.allowedHosts at config-resolution time; a leading "."
+        # allows any subdomain, so this covers the random quick-tunnel
+        # hostname without needing to know it in advance or edit
+        # vite.config.ts.
+        "__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS": ".trycloudflare.com",
+    } if TUNNEL_MODE else None
+    start("frontend", FRONTEND_CMD, cwd=FRONTEND_DIR, env=frontend_env)
+    if TUNNEL_MODE:
+        start_tunnel()
     _write_pidfile()
     print("[launcher] both running. Backend on :8000, frontend on its dev port.")
     print("[launcher] Ctrl+C to stop both, or run `python run.py` again (even from another terminal) to stop them.")
