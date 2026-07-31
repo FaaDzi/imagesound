@@ -228,7 +228,13 @@ if __name__ == "__main__":
     } if TUNNEL_MODE else None
     start("frontend", FRONTEND_CMD, cwd=FRONTEND_DIR, env=frontend_env)
     if TUNNEL_MODE:
-        start_tunnel()
+        try:
+            start_tunnel()
+        except OSError as e:
+            print(f"[launcher] WARNING: could not start cloudflared ({e}). Backend/frontend are "
+                  "still running locally on :8000/:3000. If cloudflared was just installed, open "
+                  "a NEW terminal (PATH needs refreshing) and try 'python run.py --tunnel' again "
+                  "after stopping this instance with 'python run.py'.")
     _write_pidfile()
     print("[launcher] both running. Backend on :8000, frontend on its dev port.")
     print("[launcher] Ctrl+C to stop both, or run `python run.py` again (even from another terminal) to stop them.")
