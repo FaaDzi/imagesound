@@ -12,8 +12,8 @@ import threading
 import time
 import urllib.request
 import urllib.error
+import http.client
 from pathlib import Path
-from dotenv import load_dotenv
 
 # Load the project's .env file (if present) so SESSION_SECRET_KEY and other
 # values set there are visible via os.environ -- mirrors backend/app/config.py,
@@ -23,7 +23,21 @@ from dotenv import load_dotenv
 # No-arg load_dotenv() searches upward from the current working directory --
 # since run.py is invoked from the project root, this finds the same root
 # .env the backend already uses.
-load_dotenv()
+#
+# python-dotenv is only guaranteed to be installed in the project's .venv
+# (it's a backend dependency) -- this file's own header comment says to just
+# run `python run.py`, which may resolve to a system Python that never had
+# it installed. Import optionally so a missing dotenv degrades to "can't see
+# .env-only values" (still works via real shell env vars) instead of a hard
+# crash that breaks the launcher for ALL usage, tunnel or not.
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    print("[launcher] note: python-dotenv not installed in this interpreter -- "
+          "values set only in .env (not your shell environment) won't be visible "
+          "to run.py. Run with the project's .venv Python, or set values like "
+          "SESSION_SECRET_KEY directly in your shell, to avoid this.")
 
 # --- adjust these to match what you currently type by hand ---
 VENV_PYTHON = os.path.join(".venv", "Scripts", "python.exe")  # Windows path
@@ -39,7 +53,7 @@ BACKEND_CMD = [
 ]
 FRONTEND_CMD = ["npm", "run", "dev"]
 FRONTEND_DIR = "."   # set to your frontend folder if it's not the project root
-TUNNEL_CMD = ["cloudflared", "tunnel", "--url", "http://localhost:3000"]
+TUNNEL_CMD = ["cloudflared", "tunnel", "--url", "http://127.0.0.1:3000"]
 # -------------------------------------------------------------
 
 _PIDFILE = Path(__file__).resolve().parent / ".run.pid"
@@ -135,21 +149,25 @@ def start_tunnel() -> subprocess.Popen:
     return p
 
 
-def _wait_for_frontend_ready(timeout_seconds: float = 20.0) -> bool:
+def _wait_for_frontend_ready(timeout_seconds: float = 45.0) -> bool:
     """Poll the frontend's /api/health proxy path until it responds correctly,
-    or the timeout elapses. This goes through the SAME hostname resolution a
-    real tunnel request uses, so it correctly detects the case where Windows'
-    IPv4/IPv6 preference routes 'localhost' to an unrelated process instead of
-    our actual Vite dev server (a real failure mode --strictPort alone can't
-    catch), and also confirms the frontend didn't crash on startup."""
+    or the timeout elapses. Uses the SAME 127.0.0.1 target cloudflared's
+    tunnel points at (see TUNNEL_CMD) rather than 'localhost', so there's no
+    ambiguity from Windows' IPv4/IPv6 resolution order routing to an
+    unrelated process instead of our actual Vite dev server (a real failure
+    mode --strictPort alone can't catch). Also confirms the frontend didn't
+    crash on startup. Any non-2xx/garbage response (URLError, OSError,
+    HTTPException from a non-HTTP listener on the port, or a ValueError from
+    a malformed body) is treated as "not ready yet" and retried until the
+    timeout, rather than crashing the launcher."""
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
         try:
-            with urllib.request.urlopen("http://localhost:3000/api/health", timeout=2) as resp:
+            with urllib.request.urlopen("http://127.0.0.1:3000/api/health", timeout=2) as resp:
                 body = resp.read().decode("utf-8", errors="replace")
                 if resp.status == 200 and '"status":"ok"' in body.replace(" ", ""):
                     return True
-        except (urllib.error.URLError, OSError):
+        except (urllib.error.URLError, OSError, http.client.HTTPException, ValueError):
             pass
         time.sleep(1)
     return False
@@ -161,10 +179,11 @@ def _check_tunnel_secret() -> bool:
     login session and bypass the login gate entirely. Returns True if safe
     to proceed."""
     secret = os.environ.get("SESSION_SECRET_KEY", "")
-    if not secret or secret == "dev-only-insecure-secret-change-me":
-        print("[launcher] REFUSING to start tunnel: SESSION_SECRET_KEY is unset or still the")
-        print("[launcher] insecure default. Anyone could forge a login session and bypass the")
-        print("[launcher] password gate. Set a real random value first, e.g.:")
+    if not secret or secret == "dev-only-insecure-secret-change-me" or len(secret) < 32:
+        print("[launcher] REFUSING to start tunnel: SESSION_SECRET_KEY is unset, still the")
+        print("[launcher] insecure default, or too short (< 32 chars) to be a real random")
+        print("[launcher] value. Anyone could forge a login session and bypass the password")
+        print("[launcher] gate. Set a real random value first, e.g.:")
         print("[launcher]   (PowerShell) $env:SESSION_SECRET_KEY = python -c \"import secrets; print(secrets.token_hex(32))\"")
         print("[launcher] then set it in your .env file so it's picked up on every future run.")
         return False
@@ -266,12 +285,16 @@ def _try_stop_previous_instance() -> bool:
 if __name__ == "__main__":
     TUNNEL_MODE = "--tunnel" in sys.argv
 
-    if TUNNEL_MODE and not _check_tunnel_secret():
-        sys.exit(1)
-
+    # The stop-switch must always take priority over any flag-specific gating
+    # (e.g. the tunnel secret check below) -- running this script again to
+    # stop a previous instance is documented/expected behavior regardless of
+    # what flags are passed or what the environment currently looks like.
     if _try_stop_previous_instance():
         print("[launcher] previous instance stopped. Run again to start it back up.")
         sys.exit(0)
+
+    if TUNNEL_MODE and not _check_tunnel_secret():
+        sys.exit(1)
 
     signal.signal(signal.SIGINT, stop_all)
     signal.signal(signal.SIGTERM, stop_all)
@@ -280,19 +303,25 @@ if __name__ == "__main__":
         "VITE_API_BASE": "/api",
     } if TUNNEL_MODE else None
     start("frontend", FRONTEND_CMD, cwd=FRONTEND_DIR, env=frontend_env)
+    # Write the pidfile immediately once backend+frontend are started, BEFORE
+    # the readiness probe / tunnel start below -- that way the stop-switch
+    # can always find and clean them up even if something after this point
+    # raises unexpectedly, instead of orphaning them with no pidfile to find.
+    _write_pidfile()
     if TUNNEL_MODE:
         if _wait_for_frontend_ready():
             try:
                 start_tunnel()
+                # Re-write the pidfile so it also includes the tunnel entry.
+                _write_pidfile()
             except OSError as e:
                 print(f"[launcher] WARNING: could not start cloudflared ({e}). Backend/frontend are "
                       "still running locally on :8000/:3000. If cloudflared was just installed, open "
                       "a NEW terminal (PATH needs refreshing) and try 'python run.py --tunnel' again "
                       "after stopping this instance with 'python run.py'.")
         else:
-            print("[launcher] WARNING: frontend did not become healthy within 20s -- skipping "
+            print("[launcher] WARNING: frontend did not become healthy within 45s -- skipping "
                   "tunnel start. Backend/frontend may still be usable locally; check for errors above.")
-    _write_pidfile()
     print("[launcher] both running. Backend on :8000, frontend on its dev port.")
     print("[launcher] Ctrl+C to stop both, or run `python run.py` again (even from another terminal) to stop them.")
     # wait for either to exit

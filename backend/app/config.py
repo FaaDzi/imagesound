@@ -48,7 +48,12 @@ UNSAVED_EXPIRY_SECONDS: int = int(os.getenv("UNSAVED_EXPIRY_SECONDS", str(6 * 36
 # below is DEV-ONLY -- it must never be relied on outside local development,
 # since anyone who knows it could forge a valid session cookie. Set a real
 # random value via the SESSION_SECRET_KEY env var for anything beyond that.
-SESSION_SECRET_KEY: str = os.getenv("SESSION_SECRET_KEY", "dev-only-insecure-secret-change-me")
+# `or` (not os.getenv's own default arg) is deliberate -- os.getenv's default
+# only kicks in when the variable is completely UNSET. A SESSION_SECRET_KEY=
+# left blank in .env (e.g. from copying .env.example) is still "set" to an
+# empty string, which os.getenv would happily return as-is; SessionMiddleware
+# then silently accepts that empty string as the signing key.
+SESSION_SECRET_KEY: str = os.getenv("SESSION_SECRET_KEY") or "dev-only-insecure-secret-change-me"
 
 
 def ensure_storage_dirs() -> None:
