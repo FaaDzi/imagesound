@@ -150,6 +150,28 @@ unnecessary complexity for a manually-toggled, short-lived demo link, and
 is explicitly out of scope here, consistent with the login design spec's
 existing "no HTTPS provisioning" non-goal.
 
+`vite.config.ts`'s `server.allowedHosts: ['.trycloudflare.com']` turned out
+to be required, not anticipated in the original design above. Vite 6 ships
+DNS-rebinding Host-header protection that rejects any request whose `Host`
+header isn't `localhost` or explicitly allowlisted, which otherwise 403s
+every request that arrives through the tunnel's random
+`*.trycloudflare.com` hostname.
+
+`backend/app/limiter.py`'s rate limits (login, generate, upload, etc.) key
+on the requesting IP address. Because only the frontend is tunneled and the
+Vite proxy forwards `/api/*` requests to the backend without setting an
+`X-Forwarded-For` header, every remote visitor's request arrives at the
+backend as a plain `localhost` hop — so every tunnel visitor is seen by the
+backend as `127.0.0.1` and shares ONE rate-limit bucket per endpoint (e.g.
+the login endpoint's 10/minute limit is shared across everyone using the
+tunnel at once, not applied per-visitor). This is accepted as a known
+limitation, not fixed: a naive fix (trusting a client-supplied
+`X-Forwarded-For` header) would let a malicious visitor spoof their
+apparent IP and evade rate limiting entirely. A real fix would need to
+distinguish "IP set by Cloudflare's own edge" from "IP merely claimed by
+the client," which is more engineering than this feature's scope warrants
+right now.
+
 ## Testing approach
 
 Manual, live verification (no automated test suite for a launcher script

@@ -27,7 +27,11 @@ RATE_LIMIT_MIDI: str = "10/minute"
 RATE_LIMIT_LOGIN: str = "10/minute"
 
 # CORS — list the frontend dev origin explicitly (never use "*" with credentials).
-# Add the production/tunnel URL here or override via ALLOWED_ORIGINS env var.
+# Override via ALLOWED_ORIGINS env var if needed. No change is needed here
+# for remote tunnel access (python run.py --tunnel): only the frontend is
+# tunneled, and Vite proxies /api/* to the backend same-origin, so the
+# browser never makes a cross-origin request to the backend that CORS would
+# need to allow.
 FRONTEND_ORIGINS: list[str] = ["http://localhost:3000"]
 
 

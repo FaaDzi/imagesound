@@ -121,18 +121,22 @@ a second one, so it doubles as a start/stop switch.
 
 ## Known limitations
 
-**No authentication.** Every generated file is addressed by a UUID
-(`/audio/{id}`, `/image/{id}`, `/download/{id}`, etc.), and the backend does
-not currently check who's asking — any client that knows or can guess an
-id can fetch that file. `backend/app/routers/audio.py` marks the gap
-explicitly:
+**No per-file ownership check.** There is a login gate (username `test`,
+seeded password, session cookie) — the app is browsable without logging in,
+but generating/uploading/saving requires signing in first. What's still
+missing is per-owner authorization: every generated file is addressed by a
+UUID (`/audio/{id}`, `/image/{id}`, `/download/{id}`, etc.), and once
+logged in, the backend does not check who owns which file — any
+authenticated client that knows or can guess an id can fetch that file.
+`backend/app/routers/audio.py` marks the gap explicitly:
 
 ```python
 # DB gate — only serve files that finished successfully.
 # TODO: add `AND owner_id=?` here once auth exists.
 ```
 
-This is a known, deliberately deferred gap rather than an oversight —
-there's no login system yet, so there's no owner to check against. Adding
-one (and the corresponding `owner_id` filtering across the audio/image/
-download endpoints) is planned future work, not something already mitigated.
+This is a known, deliberately deferred gap rather than an oversight — with
+only a single shared login, there's no per-user owner to check against yet.
+Adding real multi-user accounts (and the corresponding `owner_id` filtering
+across the audio/image/download endpoints) is planned future work, not
+something already mitigated.
