@@ -21,3 +21,6 @@ __pycache__/
 
 # graphify skill output (local tool cache, regenerable)
 graphify-out/
+
+# superpowers brainstorming visual-companion session state
+.superpowers/
