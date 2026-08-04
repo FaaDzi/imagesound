@@ -1,60 +1,63 @@
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Geist+Mono:wght@100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Geist:wght@100..900&display=swap');
 @import "tailwindcss";
 
 :root, body.dark {
-  /* Hallmark · design-system: design.md · designed-as-app
-     Was flat zero-chroma #0a0a0a/#111111 (the banned "flat grey") — now
-     tinted toward the accent hue (~145deg) at low chroma. --accent itself
-     is preserved exactly; --accent-secondary/--accent-tertiary are dimmed
-     from full-brightness decoration into distinct semantic roles (warning,
-     informational) instead of three co-equal accents competing at once. */
-  --bg: oklch(9% 0.012 145);
-  --bg-card: oklch(13% 0.014 145);
-  --bg-elevated: oklch(16% 0.016 145);
-  --input-bg: oklch(9% 0.012 145);
-  --text-primary: oklch(97% 0.006 145);
-  --text-muted: #888888;
-  --text-heading: oklch(97% 0.006 145);
-  --accent: #39ff14;
-  --accent-secondary: oklch(58% 0.15 350);
-  --accent-tertiary: oklch(62% 0.11 200);
-  --color-warning: oklch(80% 0.15 85);
-  --color-danger: oklch(58% 0.22 25);
-  --border: #39ff14;
-  --border-muted: #888888;
-  --selected-bg: #39ff14;
-  --selected-text: #000000;
+  /* Y2K/Aqua-Chrome redesign — see docs/superpowers/specs/2026-08-04-y2k-aqua-redesign-design.md
+     Single anchor hue 230deg (cool blue) for BOTH light and dark mode — dark mode gets more
+     chroma + glow, never a different hue. Elevation reads as lighter, never shadowed. */
+  --bg: oklch(13% 0.014 230);
+  --bg-card: oklch(17% 0.016 230);
+  --bg-elevated: oklch(21% 0.018 230);
+  --input-bg: oklch(13% 0.014 230);
+  --text-primary: oklch(94% 0.008 230);
+  --text-muted: oklch(68% 0.010 230);
+  --text-heading: oklch(94% 0.008 230);
+  --accent: oklch(55% 0.19 230);
+  --accent-glow: oklch(55% 0.19 230 / 0.5);
+  --accent-secondary: oklch(74% 0.09 230);
+  --accent-tertiary: oklch(60% 0.07 230);
+  --color-warning: oklch(72% 0.15 70);
+  --color-danger: oklch(62% 0.20 25);
+  --border: oklch(30% 0.012 230);
+  --border-muted: oklch(30% 0.012 230);
+  --selected-bg: oklch(55% 0.19 230);
+  --selected-text: oklch(97% 0.006 230);
 
-  --theme-font-ui: 'Geist Mono', monospace;
-  --theme-grid-opacity: 0.2;
+  --theme-font-ui: 'Geist', sans-serif;
+  --theme-grid-opacity: 0; /* the cyberpunk grid overlay is retired — see Task 3 */
+
+  --radius-pill: 999px;
+  --radius-panel: 14px;
+  --radius-chip: 9px;
 }
 
 body.light {
-  --bg: oklch(98% 0.006 145);
-  --bg-card: #f1f5f9;
-  --bg-elevated: #e7edf5;
-  --input-bg: oklch(98% 0.006 145);
-  --text-primary: #0f0f0f;
-  --text-muted: #64748b;
-  --text-heading: #0f0f0f;
-  --accent: #2563eb;
-  --accent-secondary: oklch(62% 0.16 45);
-  --accent-tertiary: oklch(58% 0.12 250);
-  --color-warning: oklch(72% 0.16 75);
-  --color-danger: oklch(55% 0.22 25);
-  --border: #cbd5e1;
-  --border-muted: #cbd5e1;
-  --selected-bg: #2563eb;
-  --selected-text: #ffffff;
+  --bg: oklch(97% 0.008 230);
+  --bg-card: oklch(94% 0.010 230);
+  --bg-elevated: oklch(99% 0.006 230);
+  --input-bg: oklch(99% 0.006 230);
+  --text-primary: oklch(20% 0.012 230);
+  --text-muted: oklch(45% 0.010 230);
+  --text-heading: oklch(20% 0.012 230);
+  --accent: oklch(58% 0.17 230);
+  --accent-glow: oklch(58% 0.17 230 / 0.35);
+  --accent-secondary: oklch(42% 0.10 230);
+  --accent-tertiary: oklch(52% 0.07 230);
+  --color-warning: oklch(70% 0.16 70);
+  --color-danger: oklch(58% 0.20 25);
+  --border: oklch(85% 0.008 230);
+  --border-muted: oklch(85% 0.008 230);
+  --selected-bg: oklch(58% 0.17 230);
+  --selected-text: oklch(99% 0.004 230);
 
-  --theme-font-ui: 'Geist Mono', monospace;
+  --theme-font-ui: 'Geist', sans-serif;
   --theme-grid-opacity: 0;
 }
 
 @theme {
-  --font-mono: 'Geist Mono', monospace;
+  --font-mono: 'Geist Mono', monospace;  /* kept only for genuinely tabular content, not general UI */
   --font-display: 'Syne', sans-serif;
-  --font-ui: 'Geist Mono', monospace;
+  --font-ui: 'Geist', sans-serif;
 
   --color-neon-green: var(--accent);
   --color-neon-pink: var(--accent-secondary);
