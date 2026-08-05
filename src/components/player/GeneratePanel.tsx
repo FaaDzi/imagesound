@@ -129,10 +129,10 @@ export function GeneratePanel({
               </p>
               {discardConfirmPending ? (
                 <div
-                  className="border-2 p-3 flex flex-col gap-2"
-                  style={{ borderColor: 'var(--accent-secondary)', backgroundColor: 'color-mix(in oklch, var(--accent-secondary) 6%, transparent)' }}
+                  className="border-2 rounded-[var(--radius-panel)] p-3 flex flex-col gap-2"
+                  style={{ borderColor: 'var(--color-danger)', backgroundColor: 'color-mix(in oklch, var(--color-danger) 6%, transparent)' }}
                 >
-                  <p className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--accent-secondary)' }}>
+                  <p className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--color-danger)' }}>
                     ⚠ Discard this audio? This can't be undone.
                   </p>
                   <div className="flex gap-2">
