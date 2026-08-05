@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Sun, Moon, LogIn, LogOut, Circle } from 'lucide-react';
+import { Sun, Moon, LogIn, LogOut } from 'lucide-react';
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
 
@@ -9,9 +9,8 @@ const ROUTES = [
   { path: '/library', flag: 'library' },
 ] as const;
 
-// N8 Terminal-command nav — routes read as CLI flags on a single prompt line,
-// with a blinking caret at the end. See design.md § Nav.
-export function Navigation({ theme, setTheme, physicsOn, setPhysicsOn }: { theme: string, setTheme: React.Dispatch<React.SetStateAction<string>>, physicsOn: boolean, setPhysicsOn: React.Dispatch<React.SetStateAction<boolean>> }) {
+// Pill-based nav — see docs/superpowers/specs/2026-08-04-y2k-aqua-redesign-design.md § Nav.
+export function Navigation({ theme, setTheme }: { theme: string, setTheme: React.Dispatch<React.SetStateAction<string>> }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { username, logout } = useAuth();
@@ -66,18 +65,6 @@ export function Navigation({ theme, setTheme, physicsOn, setPhysicsOn }: { theme
           title="Toggle theme"
         >
           {theme === 'light' ? <Sun size={14} /> : <Moon size={14} />}
-        </button>
-
-        <button
-          onClick={() => setPhysicsOn(prev => !prev)}
-          className="nav-term__btn inline-flex items-center gap-1.5 bg-transparent border-0 px-3 py-1.5 cursor-pointer"
-          style={{ color: physicsOn ? 'var(--accent)' : 'var(--text-muted)' }}
-          onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent)'; }}
-          onMouseLeave={e => { if (!physicsOn) e.currentTarget.style.color = 'var(--text-muted)'; }}
-          aria-label={`physics toy: ${physicsOn ? 'on' : 'off'}, toggle physics ball toy`}
-          title="Toggle physics ball toy"
-        >
-          <Circle size={14} />
         </button>
 
         <span className="flex-grow" />
