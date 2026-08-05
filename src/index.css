@@ -304,6 +304,59 @@ body {
   }
 }
 
+/* ── Aqua Drift — the one sanctioned ambient motif, Home hero only. See
+   docs/superpowers/specs/2026-08-04-y2k-aqua-redesign-design.md § Signature ambient motif. ── */
+.aqua-drift {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+.aqua-drift__bloom {
+  position: absolute;
+  filter: blur(22px);
+  border-radius: 50%;
+  background: oklch(from var(--accent) l calc(c * 0.9) h);
+}
+.aqua-drift__bloom--a {
+  top: 8%; left: 6%;
+  width: 220px; height: 220px;
+  opacity: 0.35;
+  animation: aqua-drift-bloom-a 10s var(--ease-in-out) infinite;
+}
+.aqua-drift__bloom--b {
+  bottom: -4%; right: 8%;
+  width: 180px; height: 180px;
+  border-radius: 40% 60% 55% 45% / 50% 45% 55% 50%;
+  opacity: 0.3;
+  animation: aqua-drift-bloom-b 12s var(--ease-in-out) infinite;
+}
+.aqua-drift__wave {
+  position: absolute;
+  left: -10%;
+  width: 120%;
+  height: 90px;
+  border-radius: 50%;
+  filter: blur(18px);
+  background: oklch(from var(--accent) l calc(c * 0.85) h);
+}
+.aqua-drift__wave--a { top: 20%; opacity: 0.4; animation: aqua-drift-wave-a 12s var(--ease-in-out) infinite; }
+.aqua-drift__wave--b { top: 46%; opacity: 0.32; animation: aqua-drift-wave-b 15s var(--ease-in-out) infinite; }
+.aqua-drift__wave--c { top: 70%; opacity: 0.26; animation: aqua-drift-wave-c 17s var(--ease-in-out) infinite; }
+
+@keyframes aqua-drift-bloom-a { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(14px, -10px); } }
+@keyframes aqua-drift-bloom-b { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(-14px, 10px); } }
+@keyframes aqua-drift-wave-a { 0%, 100% { transform: translateX(-20px); } 50% { transform: translateX(20px); } }
+@keyframes aqua-drift-wave-b { 0%, 100% { transform: translateX(24px); } 50% { transform: translateX(-24px); } }
+@keyframes aqua-drift-wave-c { 0%, 100% { transform: translateX(-14px); } 50% { transform: translateX(14px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .aqua-drift__bloom, .aqua-drift__wave {
+    animation: none;
+  }
+}
+
 /* ── Waveform — the app's one signature visual. See design.md § Motion. ── */
 
 .waveform {
