@@ -228,6 +228,10 @@ body {
   transform: translateY(0) scale(0.97);
   transition-duration: 80ms;
 }
+.brutal-btn-pink:focus-visible {
+  outline: 2px solid var(--color-danger);
+  outline-offset: 2px;
+}
 @media (prefers-reduced-motion: reduce) {
   .brutal-btn-pink:hover, .brutal-btn-pink:active { transform: none; }
 }
