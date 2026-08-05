@@ -182,102 +182,101 @@ body {
 }
 
 .brutal-btn {
-  @apply border-2 px-4 py-2 uppercase font-bold transition-none active:translate-y-1 active:translate-x-1;
-  border-color: var(--accent);
-  color: var(--accent);
-  box-shadow: 4px 4px 0 0 var(--accent);
-}
-
-.brutal-btn:hover {
-  background-color: var(--accent);
+  @apply px-5 py-2.5 font-semibold;
+  border: none;
+  border-radius: var(--radius-pill);
   color: var(--selected-text);
-  box-shadow: 2px 2px 0 0 var(--accent);
+  background: linear-gradient(160deg, oklch(from var(--accent) calc(l + 0.14) c h), var(--accent) 65%);
+  box-shadow:
+    inset 0 1px 0 oklch(from var(--accent) calc(l + 0.35) calc(c * 0.3) h / 0.6),
+    0 4px 10px var(--accent-glow);
+  transition: transform var(--dur-micro) var(--ease-out), box-shadow var(--dur-micro) var(--ease-out);
+}
+.brutal-btn:hover {
+  box-shadow:
+    inset 0 1px 0 oklch(from var(--accent) calc(l + 0.35) calc(c * 0.3) h / 0.7),
+    0 6px 14px var(--accent-glow);
+  transform: translateY(-1px);
 }
 .brutal-btn:active {
-  box-shadow: 0px 0px 0 0 var(--accent);
+  transform: translateY(0) scale(0.97);
+  transition-duration: 80ms;
+}
+.brutal-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .brutal-btn:hover, .brutal-btn:active { transform: none; }
 }
 
 .brutal-btn-pink {
-  @apply border-2 px-4 py-2 uppercase font-bold transition-none active:translate-y-1 active:translate-x-1;
-  border-color: var(--accent-secondary);
-  color: var(--accent-secondary);
-  box-shadow: 4px 4px 0 0 var(--accent-secondary);
-}
-
-.brutal-btn-pink:hover {
-  background-color: var(--accent-secondary);
+  @apply px-5 py-2.5 font-semibold;
+  border: none;
+  border-radius: var(--radius-pill);
   color: var(--selected-text);
-  box-shadow: 2px 2px 0 0 var(--accent-secondary);
+  background: linear-gradient(160deg, oklch(from var(--color-danger) calc(l + 0.12) c h), var(--color-danger) 65%);
+  box-shadow:
+    inset 0 1px 0 oklch(from var(--color-danger) calc(l + 0.3) calc(c * 0.3) h / 0.6),
+    0 4px 10px oklch(from var(--color-danger) l c h / 0.35);
+  transition: transform var(--dur-micro) var(--ease-out), box-shadow var(--dur-micro) var(--ease-out);
+}
+.brutal-btn-pink:hover {
+  transform: translateY(-1px);
 }
 .brutal-btn-pink:active {
-  box-shadow: 0px 0px 0 0 var(--accent-secondary);
+  transform: translateY(0) scale(0.97);
+  transition-duration: 80ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  .brutal-btn-pink:hover, .brutal-btn-pink:active { transform: none; }
 }
 
 .brutal-input {
-  @apply border-2 p-2 outline-none;
-  border-color: var(--accent);
-  color: var(--accent);
+  @apply p-2.5 outline-none;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-chip);
+  color: var(--text-primary);
   background-color: var(--input-bg);
   box-shadow: none;
+  transition: border-color var(--dur-micro) var(--ease-out), box-shadow var(--dur-micro) var(--ease-out);
 }
 .brutal-input:focus {
-  border-color: var(--accent-secondary);
-  box-shadow: 0 0 10px var(--accent-secondary);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
 .brutal-card {
-  @apply border-2 p-4;
-  border-color: var(--accent);
+  @apply p-4;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
   background-color: var(--bg-card);
-  box-shadow: -4px 4px 0 0 var(--accent-tertiary);
+  box-shadow: 0 2px 12px oklch(0% 0 0 / 0.06);
 }
 
-body.light .brutal-card {
-  background-color: var(--bg-card);
-  border-color: var(--border);
-  box-shadow: -4px 4px 0 0 var(--accent-tertiary);
+.nav-term__btn {
+  transition: color var(--dur-micro) var(--ease-out), background-color var(--dur-micro) var(--ease-out);
+  border-radius: var(--radius-pill);
 }
-
-body.light .brutal-btn {
-  border-color: var(--accent);
-  color: var(--accent);
-  box-shadow: 4px 4px 0 0 var(--accent);
-}
-
-body.light .brutal-btn:hover {
-  background-color: var(--accent);
-  color: var(--selected-text);
-}
-
-body.light .brutal-btn-pink {
-  border-color: var(--accent-secondary);
-  color: var(--accent-secondary);
-  box-shadow: 4px 4px 0 0 var(--accent-secondary);
-}
-
-body.light .brutal-btn-pink:hover {
-  background-color: var(--accent-secondary);
-  color: var(--selected-text);
-}
-
-body.light .brutal-input {
-  border-color: var(--border);
-  color: var(--text-primary);
-  background-color: var(--input-bg);
-}
-
-/* ── N8 terminal-command nav caret. The blink is allowed only here — see
-   design.md § Nav / Hallmark's N8 archetype. ── */
-.nav-term__caret {
-  display: inline-block;
-  width: 1ch;
-  animation: nav-caret-blink 1.05s steps(2) infinite;
-}
-@keyframes nav-caret-blink {
-  50% { opacity: 0; }
+.nav-term__btn:active {
+  transform: scale(0.97);
 }
 @media (prefers-reduced-motion: reduce) {
-  .nav-term__caret { animation: none; }
+  .nav-term__btn:active {
+    transform: none;
+  }
+}
+
+.lib-icon-btn {
+  border-color: var(--btn-c);
+  border-radius: var(--radius-chip);
+  color: var(--btn-c);
+  background-color: transparent;
+  transition: background-color var(--dur-micro) var(--ease-out), color var(--dur-micro) var(--ease-out);
+}
+.lib-icon-btn:hover:not(:disabled) {
+  background-color: var(--btn-c);
+  color: var(--bg);
 }
 
 /* ── Generation-complete reveal — the signature motif's second appearance.
