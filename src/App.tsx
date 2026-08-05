@@ -15,17 +15,25 @@ export default function App() {
     return localStorage.getItem('theme') || 'dark';
   });
 
+  const [physicsOn, setPhysicsOn] = useState(() => {
+    return localStorage.getItem('physicsOn') !== 'false';
+  });
+
   useEffect(() => {
     document.body.className = theme;
     localStorage.setItem('theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    localStorage.setItem('physicsOn', String(physicsOn));
+  }, [physicsOn]);
 
   return (
     <AuthProvider>
       <InProgressProvider>
         <Router>
           <Layout>
-            <Navigation theme={theme} setTheme={setTheme} />
+            <Navigation theme={theme} setTheme={setTheme} physicsOn={physicsOn} setPhysicsOn={setPhysicsOn} />
             <main className="flex-grow flex flex-col z-10 w-full relative">
               <Routes>
                 <Route path="/" element={<Home />} />

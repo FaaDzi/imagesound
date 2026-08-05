@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Sun, Moon, LogIn, LogOut } from 'lucide-react';
+import { Sun, Moon, LogIn, LogOut, Circle } from 'lucide-react';
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
 
@@ -11,7 +11,7 @@ const ROUTES = [
 
 // N8 Terminal-command nav — routes read as CLI flags on a single prompt line,
 // with a blinking caret at the end. See design.md § Nav.
-export function Navigation({ theme, setTheme }: { theme: string, setTheme: React.Dispatch<React.SetStateAction<string>> }) {
+export function Navigation({ theme, setTheme, physicsOn, setPhysicsOn }: { theme: string, setTheme: React.Dispatch<React.SetStateAction<string>>, physicsOn: boolean, setPhysicsOn: React.Dispatch<React.SetStateAction<boolean>> }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { username, logout } = useAuth();
@@ -24,15 +24,13 @@ export function Navigation({ theme, setTheme }: { theme: string, setTheme: React
 
   return (
     <header
-      className="border-b-2 px-4 md:px-8 py-4 sticky top-0 z-50"
-      style={{ backgroundColor: 'var(--bg)', borderBottomColor: 'var(--border-muted)' }}
+      className="px-4 md:px-8 py-3 sticky top-0 z-50"
+      style={{ backgroundColor: 'var(--bg)', borderBottom: '1px solid var(--border)' }}
     >
-      <pre className="m-0 font-mono flex flex-wrap items-baseline gap-x-3 gap-y-1.5 text-sm md:text-base whitespace-pre-wrap">
-        <span aria-hidden="true" style={{ color: 'var(--accent)' }}>{'>'}</span>
-
+      <nav className="m-0 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-sm md:text-base">
         <Link
           to="/"
-          className="glitch font-bold tracking-widest uppercase"
+          className="glitch font-bold tracking-widest uppercase mr-2"
           data-text="imagesound"
           style={{ color: 'var(--text-heading)' }}
         >
@@ -45,60 +43,71 @@ export function Navigation({ theme, setTheme }: { theme: string, setTheme: React
             <Link
               key={r.path}
               to={r.path}
+              className="nav-term__btn px-3 py-1.5"
               style={{
-                color: active ? 'var(--accent)' : 'var(--text-muted)',
-                textDecoration: active ? 'underline' : 'none',
-                textUnderlineOffset: '3px',
-                transition: 'color var(--dur-micro) var(--ease-out)',
+                color: active ? 'var(--selected-text)' : 'var(--text-muted)',
+                backgroundColor: active ? 'var(--accent)' : 'transparent',
               }}
               onMouseEnter={e => { if (!active) e.currentTarget.style.color = 'var(--accent)'; }}
               onMouseLeave={e => { if (!active) e.currentTarget.style.color = 'var(--text-muted)'; }}
             >
-              --{r.flag}
+              {r.flag}
             </Link>
           );
         })}
 
         <button
           onClick={toggleTheme}
-          className="inline-flex items-center gap-1 bg-transparent border-0 p-0 font-mono cursor-pointer"
-          style={{ color: 'var(--text-muted)', transition: 'color var(--dur-micro) var(--ease-out)' }}
+          className="nav-term__btn inline-flex items-center gap-1.5 bg-transparent border-0 px-3 py-1.5 cursor-pointer"
+          style={{ color: 'var(--text-muted)' }}
           onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent)'; }}
           onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; }}
+          aria-label={`theme: ${theme}, toggle theme`}
           title="Toggle theme"
         >
-          --theme:{theme}
           {theme === 'light' ? <Sun size={14} /> : <Moon size={14} />}
         </button>
+
+        <button
+          onClick={() => setPhysicsOn(prev => !prev)}
+          className="nav-term__btn inline-flex items-center gap-1.5 bg-transparent border-0 px-3 py-1.5 cursor-pointer"
+          style={{ color: physicsOn ? 'var(--accent)' : 'var(--text-muted)' }}
+          onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent)'; }}
+          onMouseLeave={e => { if (!physicsOn) e.currentTarget.style.color = 'var(--text-muted)'; }}
+          aria-label={`physics toy: ${physicsOn ? 'on' : 'off'}, toggle physics ball toy`}
+          title="Toggle physics ball toy"
+        >
+          <Circle size={14} />
+        </button>
+
+        <span className="flex-grow" />
 
         {username ? (
           <button
             onClick={handleLogout}
-            className="inline-flex items-center gap-1 bg-transparent border-0 p-0 font-mono cursor-pointer"
-            style={{ color: 'var(--text-muted)', transition: 'color var(--dur-micro) var(--ease-out)' }}
+            className="nav-term__btn inline-flex items-center gap-1.5 bg-transparent border-0 px-3 py-1.5 cursor-pointer"
+            style={{ color: 'var(--text-muted)' }}
             onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent)'; }}
             onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; }}
+            aria-label={`user: ${username}, log out`}
             title="Log out"
           >
-            --user:{username}
+            {username}
             <LogOut size={14} />
           </button>
         ) : (
           <Link
             to="/login"
-            className="inline-flex items-center gap-1"
-            style={{ color: 'var(--accent-secondary)', textDecoration: 'none' }}
-            onMouseEnter={e => { e.currentTarget.style.textDecoration = 'underline'; }}
-            onMouseLeave={e => { e.currentTarget.style.textDecoration = 'none'; }}
+            className="nav-term__btn inline-flex items-center gap-1.5 px-3 py-1.5"
+            style={{ color: 'var(--selected-text)', backgroundColor: 'var(--accent)', textDecoration: 'none' }}
+            aria-label="log in"
             title="Log in"
           >
-            --login
+            Log in
             <LogIn size={14} />
           </Link>
         )}
-
-        <span className="nav-term__caret" aria-hidden="true" style={{ color: 'var(--accent)' }}>▮</span>
-      </pre>
+      </nav>
     </header>
   );
 }
