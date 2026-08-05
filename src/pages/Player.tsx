@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, Link } from 'react-router-dom';
-import { Play, Pause, FastForward, Rewind, AlertTriangle, Lock } from 'lucide-react';
+import { Play, Pause, FastForward, Rewind, AlertTriangle, Lock, Check } from 'lucide-react';
 import { describeImage, saveJob, discardJob, audioUrl, downloadSong, DownloadFormat } from '../api';
 import { usePromptHistory } from '../hooks/usePromptHistory';
 import { useGeneration } from '../hooks/useGeneration';
@@ -15,9 +15,12 @@ import { GeneratePanel } from '../components/player/GeneratePanel';
 // Set to true once facebook/musicgen-small has been downloaded locally.
 const SMALL_MODEL_AVAILABLE = true;
 
-// Fixed decorative bar heights — computed once, no per-render randomisation.
+// Fixed decorative bar scale factors (0..1) — computed once, no per-render
+// randomisation. Applied as `transform: scaleY(var(--h))` on .output-bar, not
+// as an animated height: transform/opacity are composite-only, height is not.
+// Same mechanic as <Waveform>'s bars — see index.css § .output-bar.
 const BAR_HEIGHTS = Array.from({ length: 48 }, (_, i) =>
-  Math.max(8, Math.abs(Math.sin(i * 0.42) * 38 + Math.sin(i * 0.91 + 1.3) * 18 + 28))
+  Math.max(8, Math.abs(Math.sin(i * 0.42) * 38 + Math.sin(i * 0.91 + 1.3) * 18 + 28)) / 100
 );
 
 // Chunk boundary — matches _CHUNK_SEC in generate_song.py.
@@ -39,7 +42,7 @@ export function Player() {
     prompt?: string;
   } | null;
 
-  const { item, setItem, updatePrompt, clearItem } = useInProgress();
+  const { item, setItem, updatePrompt, markSaved, clearItem } = useInProgress();
   const { username } = useAuth();
   const audioRef = useRef<HTMLAudioElement>(null);
   const describedForRef = useRef<string | null>(null);
@@ -379,6 +382,9 @@ export function Player() {
       // Deliberately NOT clearing item/generation here — saving shouldn't kick
       // the user off the result panel. They can still play/download the song
       // they just saved; "GENERATE AGAIN" (below) is the explicit way to move on.
+      // markSaved() instead, so Home's "unfinished work" resume banner (which
+      // reads this same item) knows this session is no longer actually unsaved.
+      markSaved();
     } catch {
       setIsSaving(false);
     }
@@ -505,14 +511,12 @@ export function Player() {
                   {BAR_HEIGHTS.map((h, i) => (
                     <div
                       key={i}
-                      className={generation.phase === 'done' ? 'w-full output-bar--reveal' : 'w-full'}
+                      className={generation.phase === 'done' ? 'output-bar output-bar--reveal' : 'output-bar'}
                       style={{
-                        backgroundColor: 'var(--accent)',
-                        height: `${isPlaying ? h : h * 0.45}%`,
-                        opacity: isPlaying ? 0.85 : 0.3,
-                        transition: 'height 0.45s ease-out, opacity 0.45s',
+                        '--h': isPlaying ? h : h * 0.45,
+                        '--o': isPlaying ? 0.85 : 0.3,
                         animationDelay: generation.phase === 'done' ? `${i * 10}ms` : undefined,
-                      }}
+                      } as React.CSSProperties}
                     />
                   ))}
                 </div>
@@ -554,12 +558,20 @@ export function Player() {
                   [ PLAYBACK ]
                 </h4>
                 <div className="flex items-center justify-center gap-6">
-                  <button onClick={handleRewind} className="transition-colors" style={{ color: 'var(--text-heading)' }} title="-10s">
+                  <button
+                    onClick={handleRewind}
+                    className="transition-colors"
+                    style={{ color: 'var(--text-heading)' }}
+                    aria-label="Rewind 10 seconds"
+                    title="-10s"
+                  >
                     <Rewind size={32} />
                   </button>
                   <button
                     className="w-16 h-16 border-4 flex flex-col items-center justify-center transition-colors"
                     onClick={handlePlayPause}
+                    aria-label={isPlaying ? 'Pause' : 'Play'}
+                    title={isPlaying ? 'Pause' : 'Play'}
                     style={{
                       borderRadius: '0',
                       backgroundColor: 'var(--bg)',
@@ -569,7 +581,13 @@ export function Player() {
                   >
                     {isPlaying ? <Pause size={32} /> : <Play size={32} className="ml-2" />}
                   </button>
-                  <button onClick={handleFastForward} className="transition-colors" style={{ color: 'var(--text-heading)' }} title="+10s">
+                  <button
+                    onClick={handleFastForward}
+                    className="transition-colors"
+                    style={{ color: 'var(--text-heading)' }}
+                    aria-label="Fast forward 10 seconds"
+                    title="+10s"
+                  >
                     <FastForward size={32} />
                   </button>
                 </div>
@@ -668,13 +686,14 @@ export function Player() {
                             </span>
                             <button
                               onClick={handleCommit}
-                              className="text-[10px] font-bold uppercase tracking-widest border px-2 py-1 transition-colors shrink-0"
+                              className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest border px-2 py-1 transition-colors shrink-0"
                               style={{
                                 borderColor: commitFlash ? 'var(--accent)' : 'var(--accent-tertiary)',
                                 color: commitFlash ? 'var(--accent)' : 'var(--accent-tertiary)',
                               }}
                             >
-                              {commitFlash ? '✓ SAVED' : '✓ COMMIT'}
+                              <Check size={10} aria-hidden="true" />
+                              {commitFlash ? 'SAVED' : 'COMMIT'}
                             </button>
                           </div>
                           {history.checkpoints.length > 1 && (
@@ -694,6 +713,7 @@ export function Player() {
                                 <button
                                   onClick={history.stepBack}
                                   disabled={!history.canStepBack}
+                                  aria-label="Previous prompt version"
                                   className="text-xs font-bold w-6 text-center disabled:opacity-20 transition-opacity"
                                   style={{ color: 'var(--accent-tertiary)' }}
                                 >
@@ -702,12 +722,14 @@ export function Player() {
                                 <span
                                   className="text-[10px] font-mono uppercase opacity-60 w-12 text-center"
                                   style={{ color: 'var(--accent-tertiary)' }}
+                                  aria-live="polite"
                                 >
                                   v{history.index + 1} / {history.checkpoints.length}
                                 </span>
                                 <button
                                   onClick={history.stepForward}
                                   disabled={!history.canStepForward}
+                                  aria-label="Next prompt version"
                                   className="text-xs font-bold w-6 text-center disabled:opacity-20 transition-opacity"
                                   style={{ color: 'var(--accent-tertiary)' }}
                                 >
@@ -885,7 +907,8 @@ export function Player() {
             setShowFormatPicker={setShowFormatPicker}
             downloadFormat={downloadFormat}
             setDownloadFormat={setDownloadFormat}
-            generateDisabled={!history.draftText.trim() && !fileId}
+            generateDisabled={describeLoading || (!history.draftText.trim() && !fileId)}
+            generateDisabledTitle={describeLoading ? 'Waiting for AI description to finish...' : undefined}
             onGenerate={handleGenerate}
             onCancel={handleCancel}
             onSave={handleSave}

@@ -14,6 +14,11 @@ export default function App() {
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('theme') || 'dark';
   });
+  // Off by default on every load -- StressBall used to spawn its pull-tab
+  // immediately on page load with no way to dismiss it entirely. Not
+  // persisted to localStorage on purpose: the ask was specifically that it
+  // never appears on its own, only when explicitly opened via the nav toggle.
+  const [physicsOn, setPhysicsOn] = useState(false);
 
   useEffect(() => {
     document.body.className = theme;
@@ -25,7 +30,7 @@ export default function App() {
       <InProgressProvider>
         <Router>
           <Layout>
-            <Navigation theme={theme} setTheme={setTheme} />
+            <Navigation theme={theme} setTheme={setTheme} physicsOn={physicsOn} setPhysicsOn={setPhysicsOn} />
             <main className="flex-grow flex flex-col z-10 w-full relative">
               <Routes>
                 <Route path="/" element={<Home />} />
@@ -34,7 +39,7 @@ export default function App() {
                 <Route path="/login" element={<Login />} />
               </Routes>
             </main>
-            <StressBall />
+            {physicsOn && <StressBall />}
           </Layout>
         </Router>
       </InProgressProvider>

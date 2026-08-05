@@ -277,24 +277,79 @@ body.light .brutal-input {
   .nav-term__caret { animation: none; }
 }
 
-/* ── Generation-complete reveal — the signature motif's second appearance.
-   Applied to the Player's real output bars (not a decorative stand-in) the
-   moment a generation finishes. See design.md § Motion. ── */
-.output-bar--reveal {
+/* ── Nav text-buttons — the scaled-down member of the .brutal-btn press
+   family. No border or shadow to collapse, so the press is the same
+   down-and-right nudge at 1px instead of 4px. Instant like .brutal-btn
+   (which is `transition-none`); only the colour is eased. ── */
+.nav-term__btn {
+  transition: color var(--dur-micro) var(--ease-out);
+}
+
+/* ── Library action buttons — border+text swap to solid fill on hover.
+   Set --btn-c per instance (the button's accent colour) instead of
+   duplicating onMouseEnter/onMouseLeave pairs per button. ── */
+.lib-icon-btn {
+  border-color: var(--btn-c);
+  color: var(--btn-c);
+  background-color: transparent;
+  transition: background-color var(--dur-micro) var(--ease-out), color var(--dur-micro) var(--ease-out);
+}
+.lib-icon-btn:hover:not(:disabled) {
+  background-color: var(--btn-c);
+  color: var(--bg);
+}
+.nav-term__btn:active {
+  transform: translate(1px, 1px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-term__btn:active {
+    transform: none;
+  }
+}
+
+/* ── Player output bars — the same GPU-only mechanic as .waveform__bars span
+   below: bars are laid out at full height once and their visual height is
+   driven purely by `transform: scaleY()`, never by an animated `height`.
+   `--h` (0..1 scale) and `--o` (rest opacity) are set per-bar from
+   Player.tsx. See design.md § Motion. ── */
+.output-bar {
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+  background-color: var(--accent);
   transform-origin: bottom;
+  transform: scaleY(var(--h));
+  opacity: var(--o);
+  transition:
+    transform var(--dur-long) var(--ease-out),
+    opacity var(--dur-long) var(--ease-out);
+}
+
+/* Generation-complete reveal — the signature motif's second appearance.
+   Applied to the Player's real output bars (not a decorative stand-in) the
+   moment a generation finishes. `backwards` (not `forwards`) so that once the
+   one-shot finishes the bars hand control back to .output-bar's --h/--o,
+   which the play/pause transition then drives. */
+.output-bar--reveal {
   animation: output-bar-reveal var(--dur-long) var(--ease-out) backwards;
 }
 @keyframes output-bar-reveal {
-  from { transform: scaleY(0); opacity: 0; }
-  to   { transform: scaleY(1); opacity: 1; }
+  from { transform: scaleY(0);        opacity: 0; }
+  to   { transform: scaleY(var(--h)); opacity: var(--o); }
 }
+
 @media (prefers-reduced-motion: reduce) {
+  /* Size change is motion — drop it. The opacity crossfade aids comprehension
+     (playing vs. paused), so it stays, capped at 150ms per design.md. */
+  .output-bar {
+    transition: opacity 150ms linear;
+  }
   .output-bar--reveal {
     animation: output-bar-reveal-reduced 150ms linear backwards;
   }
   @keyframes output-bar-reveal-reduced {
     from { opacity: 0; }
-    to   { opacity: 1; transform: none; }
+    to   { opacity: var(--o); }
   }
 }
 

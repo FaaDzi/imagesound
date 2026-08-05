@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Trash2, Music, Database, Play, Pause, Download, Save, FileMusic, Shuffle, Check, AlertTriangle } from 'lucide-react';
+import { Trash2, Music, Database, Play, Pause, Download, Save, FileMusic, Shuffle, Check, AlertTriangle, X } from 'lucide-react';
 import { getLibrary, discardJob, saveJob, audioUrl, imageUrl, downloadSong, convertToMidi, downloadMidi, midiPreviewUrl, LibraryItem, DOWNLOAD_FORMATS, DownloadFormat } from '../api';
 import { useAuth } from '../context/AuthContext';
 
@@ -278,8 +278,8 @@ export function Library() {
                     {item.saved
                       ? formatTimeRemaining(item.expires_at)
                       : (
-                        <span className={isExpiringSoon ? 'animate-pulse' : ''}>
-                          ⚠ {formatTimeRemaining(item.expires_at)}
+                        <span className={`inline-flex items-center gap-1 ${isExpiringSoon ? 'animate-pulse' : ''}`}>
+                          <AlertTriangle size={10} aria-hidden="true" /> {formatTimeRemaining(item.expires_at)}
                         </span>
                       )
                     }
@@ -370,10 +370,8 @@ export function Library() {
                         onClick={() => handlePlay(item.id, midiPreviewUrl(item.id))}
                         disabled={!loggedIn}
                         title={!loggedIn ? 'Login required' : (isThisPlaying && isAudioPlaying ? 'Pause MIDI preview' : 'Play MIDI preview (synth rendering)')}
-                        className="p-1 px-3 border text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
-                        style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
-                        onMouseEnter={e => { if (loggedIn) { e.currentTarget.style.backgroundColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--bg)'; } }}
-                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--accent)'; }}
+                        className="lib-icon-btn p-1 px-3 border text-xs font-bold uppercase tracking-widest flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
+                        style={{ '--btn-c': 'var(--accent)' } as React.CSSProperties}
                       >
                         {isThisPlaying && isAudioPlaying ? <Pause size={12} /> : <Play size={12} />}
                         {isThisPlaying && isAudioPlaying ? 'PAUSE' : 'PLAY'}
@@ -383,10 +381,8 @@ export function Library() {
                         onClick={(e) => handleDownloadMidi(item.id, item.prompt, e)}
                         disabled={!loggedIn}
                         title={!loggedIn ? 'Login required' : 'Download MIDI file'}
-                        className="p-1 px-3 border text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
-                        style={{ borderColor: 'var(--accent-tertiary)', color: 'var(--accent-tertiary)' }}
-                        onMouseEnter={e => { if (loggedIn) { e.currentTarget.style.backgroundColor = 'var(--accent-tertiary)'; e.currentTarget.style.color = 'var(--bg)'; } }}
-                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--accent-tertiary)'; }}
+                        className="lib-icon-btn p-1 px-3 border text-xs font-bold uppercase tracking-widest flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
+                        style={{ '--btn-c': 'var(--accent-tertiary)' } as React.CSSProperties}
                       >
                         <Download size={12} /> MIDI
                       </button>
@@ -408,10 +404,8 @@ export function Library() {
                         onClick={() => handlePlay(item.id, audioUrl(item.id))}
                         disabled={!loggedIn}
                         title={!loggedIn ? 'Login required' : (isThisPlaying && isAudioPlaying ? 'Pause' : 'Play')}
-                        className="p-1 px-3 border text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
-                        style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
-                        onMouseEnter={e => { if (loggedIn) { e.currentTarget.style.backgroundColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--bg)'; } }}
-                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--accent)'; }}
+                        className="lib-icon-btn p-1 px-3 border text-xs font-bold uppercase tracking-widest flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
+                        style={{ '--btn-c': 'var(--accent)' } as React.CSSProperties}
                       >
                         {isThisPlaying && isAudioPlaying ? <Pause size={12} /> : <Play size={12} />}
                         {isThisPlaying && isAudioPlaying ? 'PAUSE' : 'PLAY'}
@@ -422,10 +416,8 @@ export function Library() {
                         onClick={(e) => handleRemix(item.id, item.prompt, e)}
                         disabled={!loggedIn}
                         title={!loggedIn ? 'Login required' : 'Use as melody reference for a new song'}
-                        className="p-1 px-3 border text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
-                        style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
-                        onMouseEnter={e => { if (loggedIn) { e.currentTarget.style.backgroundColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--bg)'; } }}
-                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--accent)'; }}
+                        className="lib-icon-btn p-1 px-3 border text-xs font-bold uppercase tracking-widest flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
+                        style={{ '--btn-c': 'var(--accent)' } as React.CSSProperties}
                       >
                         <Shuffle size={12} />
                         REMIX
@@ -469,27 +461,15 @@ export function Library() {
                                     ? (midiState === 'failed' ? 'MIDI conversion failed — retry' : 'Convert to MIDI')
                                     : `Download ${selectedFmt.toUpperCase()}`
                               }
-                              className="p-1 px-3 border text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-1"
+                              className="lib-icon-btn p-1 px-3 border text-xs font-bold uppercase tracking-widest flex items-center gap-1 disabled:cursor-not-allowed"
                               style={{
-                                borderColor: btnColor,
-                                color: btnColor,
+                                '--btn-c': btnColor,
                                 opacity: !loggedIn || (isMidiSelected && midiState === 'converting') ? 0.5 : 1,
-                                cursor: !loggedIn || (isMidiSelected && midiState === 'converting') ? 'not-allowed' : 'pointer',
-                              }}
-                              onMouseEnter={e => {
-                                if (loggedIn && !(isMidiSelected && midiState === 'converting')) {
-                                  e.currentTarget.style.backgroundColor = btnColor;
-                                  e.currentTarget.style.color = 'var(--bg)';
-                                }
-                              }}
-                              onMouseLeave={e => {
-                                e.currentTarget.style.backgroundColor = 'transparent';
-                                e.currentTarget.style.color = btnColor;
-                              }}
+                              } as React.CSSProperties}
                             >
-                              {isMidiSelected ? <FileMusic size={12} /> : <Download size={12} />}
+                              {isMidiSelected ? (midiState === 'failed' ? <X size={12} /> : <FileMusic size={12} />) : <Download size={12} />}
                               {isMidiSelected
-                                ? (midiState === 'converting' ? 'CONVERTING…' : midiState === 'failed' ? 'CONVERT ✗' : 'CONVERT')
+                                ? (midiState === 'converting' ? 'CONVERTING…' : midiState === 'failed' ? 'CONVERT FAILED' : 'CONVERT')
                                 : 'DOWNLOAD'}
                             </button>
                           </>
@@ -504,10 +484,8 @@ export function Library() {
                       onClick={(e) => handleSave(item.id, e)}
                       disabled={!loggedIn}
                       title={!loggedIn ? 'Login required' : 'Save to library'}
-                      className="p-1 px-3 border text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
-                      style={{ borderColor: 'var(--accent-secondary)', color: 'var(--accent-secondary)' }}
-                      onMouseEnter={e => { if (loggedIn) { e.currentTarget.style.backgroundColor = 'var(--accent-secondary)'; e.currentTarget.style.color = 'var(--bg)'; } }}
-                      onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--accent-secondary)'; }}
+                      className="lib-icon-btn p-1 px-3 border text-xs font-bold uppercase tracking-widest flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
+                      style={{ '--btn-c': 'var(--accent-secondary)' } as React.CSSProperties}
                     >
                       <Save size={12} /> SAVE
                     </button>
@@ -518,10 +496,8 @@ export function Library() {
                     onClick={(e) => handleDiscard(item.id, e)}
                     disabled={!loggedIn}
                     title={!loggedIn ? 'Login required' : 'Delete'}
-                    className="p-1 px-3 border text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
-                    style={{ borderColor: 'red', color: 'red' }}
-                    onMouseEnter={e => { if (loggedIn) { e.currentTarget.style.backgroundColor = 'red'; e.currentTarget.style.color = 'var(--bg)'; } }}
-                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'red'; }}
+                    className="lib-icon-btn p-1 px-3 border text-xs font-bold uppercase tracking-widest flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
+                    style={{ '--btn-c': 'red' } as React.CSSProperties}
                   >
                     <Trash2 size={12} /> PURGE
                   </button>

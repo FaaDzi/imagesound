@@ -108,8 +108,10 @@ export function Home() {
             </h2>
           </div>
 
-          {/* IN-PROGRESS WARNING */}
-          {item && (
+          {/* IN-PROGRESS WARNING — only for genuinely unsaved work. Once the
+              song has been saved to the library there's nothing left to lose,
+              so the "resume before you lose it" prompt no longer applies. */}
+          {item && !item.saved && (
             <div
               className="border-4 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
               style={{ borderColor: 'var(--accent-secondary)', backgroundColor: 'color-mix(in oklch, var(--accent-secondary) 6%, transparent)' }}

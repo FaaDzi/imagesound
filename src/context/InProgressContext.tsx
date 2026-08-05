@@ -6,12 +6,14 @@ export interface InProgressItem {
   url: string | null;
   filename: string | null;
   prompt: string | null;
+  saved?: boolean;
 }
 
 interface InProgressContextValue {
   item: InProgressItem | null;
   setItem: (item: InProgressItem) => void;
   updatePrompt: (prompt: string) => void;
+  markSaved: () => void;
   clearItem: () => void;
 }
 
@@ -52,13 +54,22 @@ export function InProgressProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const markSaved = useCallback(() => {
+    setItemState(prev => {
+      if (!prev) return prev;
+      const next = { ...prev, saved: true };
+      writeStorage(next);
+      return next;
+    });
+  }, []);
+
   const clearItem = useCallback(() => {
     setItemState(null);
     writeStorage(null);
   }, []);
 
   return (
-    <InProgressContext.Provider value={{ item, setItem, updatePrompt, clearItem }}>
+    <InProgressContext.Provider value={{ item, setItem, updatePrompt, markSaved, clearItem }}>
       {children}
     </InProgressContext.Provider>
   );

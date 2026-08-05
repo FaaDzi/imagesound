@@ -4,12 +4,9 @@ import React from 'react';
 // dragging vertically sets that chunk's intensity, and preset buttons snap
 // the whole arc to a named shape.
 //
-// NOTE: there is a known, reported bug here — dragging one bar can sometimes
-// change a different bar instead. This split intentionally preserves that
-// bug exactly as it behaved in Player.tsx; do not fix it as part of this
-// component extraction. The pointer handlers (and the ref-based index-lock
-// that the bug lives in) stay in Player.tsx and are passed down as props —
-// only the presentational bars/labels/preset-buttons JSX moved here.
+// Pointer handlers (and the ref-based index-lock that keeps a drag pinned to
+// the bar it started on) stay in Player.tsx and are passed down as props —
+// only the presentational bars/labels/preset-buttons JSX lives here.
 
 // Arc preset shapes: 4 intensity points (0–100) for 4 chunks.
 // Sampled to N points when duration produces fewer than 4 chunks.
@@ -23,7 +20,10 @@ export const ARC_PRESETS: { id: string; label: string; points: [number, number, 
 // Sample a 4-point preset curve to exactly n points via linear interpolation.
 export function samplePreset(points: [number, number, number, number], n: number): number[] {
   if (n <= 1) return [points[0]];
-  if (n >= 4) return [...points];
+  if (n === 4) return [...points];
+  // n < 4: downsample: n > 4: upsample (e.g. a 180s song needs 6 chunks).
+  // Both directions use the same interpolation -- it reduces to the 4
+  // original points exactly when n === 4, so that case is just a shortcut.
   return Array.from({ length: n }, (_, i) => {
     const t  = (i / (n - 1)) * 3;
     const lo = Math.min(3, Math.floor(t));

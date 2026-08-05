@@ -1,5 +1,5 @@
 import React from 'react';
-import { Download, Zap, Save, X } from 'lucide-react';
+import { Download, Zap, Save, X, Check, AlertTriangle } from 'lucide-react';
 import { downloadSong, DOWNLOAD_FORMATS, DownloadFormat } from '../../api';
 import { UseGenerationReturn } from '../../hooks/useGeneration';
 import { useAudioEffects, effectsAreNeutral } from '../../hooks/useAudioEffects';
@@ -18,8 +18,9 @@ export interface GeneratePanelProps {
   setShowFormatPicker: React.Dispatch<React.SetStateAction<boolean>>;
   downloadFormat: DownloadFormat;
   setDownloadFormat: React.Dispatch<React.SetStateAction<DownloadFormat>>;
-  // Idle "GENERATE SONG" button disabled condition: !history.draftText.trim() && !fileId
+  // Idle "GENERATE SONG" button disabled condition: describeLoading || (!history.draftText.trim() && !fileId)
   generateDisabled: boolean;
+  generateDisabledTitle?: string;
   onGenerate: () => void;       // idle button + failed-state retry button
   onCancel: () => void;
   onSave: () => void;
@@ -32,7 +33,7 @@ export interface GeneratePanelProps {
 export function GeneratePanel({
   generation, effects, isSaving, isDiscarding, saveConfirmed, discardConfirmPending,
   showFormatPicker, setShowFormatPicker, downloadFormat, setDownloadFormat,
-  generateDisabled, onGenerate, onCancel, onSave, onDiscardClick, onDiscardConfirm,
+  generateDisabled, generateDisabledTitle, onGenerate, onCancel, onSave, onDiscardClick, onDiscardConfirm,
   onDiscardCancel, onGenerateAgain,
 }: GeneratePanelProps) {
   const isGenerating =
@@ -113,27 +114,37 @@ export function GeneratePanel({
             className="flex items-center gap-2 border p-3 text-xs font-mono uppercase font-bold"
             style={{ borderColor: 'var(--accent)', color: 'var(--accent)', backgroundColor: 'color-mix(in oklch, var(--accent) 6%, transparent)' }}
           >
-            ✓ GENERATION COMPLETE — AUDIO READY
+            <Check size={14} className="shrink-0" aria-hidden="true" />
+            <span>GENERATION COMPLETE — AUDIO READY</span>
           </div>
           {saveConfirmed ? (
             <div
               className="flex items-center gap-2 border p-3 text-xs font-mono uppercase font-bold"
               style={{ borderColor: 'var(--accent)', color: 'var(--accent)', backgroundColor: 'color-mix(in oklch, var(--accent) 12%, transparent)' }}
             >
-              ✓ SAVED TO LIBRARY
+              <Check size={14} className="shrink-0" aria-hidden="true" />
+              <span>SAVED TO LIBRARY</span>
             </div>
           ) : (
             <>
-              <p className="text-[10px] font-mono uppercase" style={{ color: 'var(--color-warning)', opacity: 0.9 }}>
-                ⚠ UNSAVED — SAVE TO KEEP OR IT WILL EXPIRE
+              <p
+                className="flex items-start gap-2 text-[10px] font-mono uppercase"
+                style={{ color: 'var(--color-warning)', opacity: 0.9 }}
+              >
+                <AlertTriangle size={12} className="shrink-0 mt-[1px]" aria-hidden="true" />
+                <span>UNSAVED — SAVE TO KEEP OR IT WILL EXPIRE</span>
               </p>
               {discardConfirmPending ? (
                 <div
                   className="border-2 p-3 flex flex-col gap-2"
                   style={{ borderColor: 'var(--accent-secondary)', backgroundColor: 'color-mix(in oklch, var(--accent-secondary) 6%, transparent)' }}
                 >
-                  <p className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--accent-secondary)' }}>
-                    ⚠ Discard this audio? This can't be undone.
+                  <p
+                    className="flex items-start gap-2 text-xs font-bold uppercase tracking-widest"
+                    style={{ color: 'var(--accent-secondary)' }}
+                  >
+                    <AlertTriangle size={14} className="shrink-0 mt-[1px]" aria-hidden="true" />
+                    <span>Discard this audio? This can't be undone.</span>
                   </p>
                   <div className="flex gap-2">
                     <button
@@ -196,12 +207,14 @@ export function GeneratePanel({
                 </span>
                 <button
                   onClick={() => setShowFormatPicker(false)}
-                  className="text-[9px] font-mono uppercase tracking-widest transition-opacity"
+                  aria-label="Close format picker"
+                  title="Close format picker"
+                  className="inline-flex items-center justify-center p-1 -m-1 transition-opacity"
                   style={{ color: 'var(--accent)', opacity: 0.5 }}
                   onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
                   onMouseLeave={e => (e.currentTarget.style.opacity = '0.5')}
                 >
-                  ✕
+                  <X size={12} />
                 </button>
               </div>
               <div className="flex gap-1">
@@ -267,6 +280,7 @@ export function GeneratePanel({
         <button
           onClick={onGenerate}
           disabled={generateDisabled}
+          title={generateDisabled ? generateDisabledTitle : undefined}
           className="brutal-btn w-full flex items-center justify-center gap-2 disabled:opacity-30"
         >
           <Zap size={16} /> GENERATE SONG
