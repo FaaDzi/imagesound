@@ -266,7 +266,7 @@ export function GeneratePanel({
       {/* FAILED */}
       {generation.phase === 'failed' && (
         <div className="flex flex-col gap-3">
-          <p className="text-xs font-mono uppercase" style={{ color: 'var(--accent-secondary)' }}>
+          <p className="text-xs font-mono uppercase" style={{ color: 'var(--color-danger)' }}>
             ERROR: {generation.error ?? 'Unknown error.'}
           </p>
           <button onClick={onGenerate} className="brutal-btn w-full brutal-btn-pink flex items-center justify-center gap-2">
