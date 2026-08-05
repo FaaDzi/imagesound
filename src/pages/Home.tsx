@@ -5,6 +5,7 @@ import { uploadFile } from '../api';
 import { useInProgress } from '../context/InProgressContext';
 import { useAuth } from '../context/AuthContext';
 import { Waveform } from '../components/Waveform';
+import { AquaDrift } from '../components/AquaDrift';
 
 export function Home() {
   const navigate = useNavigate();
@@ -88,8 +89,9 @@ export function Home() {
   };
 
   return (
-    <div className="container mx-auto px-4 md:px-8 py-10 md:py-14 flex-grow">
-      <div className="grid grid-cols-1 lg:grid-cols-[1.3fr_1fr] gap-10 lg:gap-16 items-start max-w-6xl mx-auto">
+    <div className="container mx-auto px-4 md:px-8 py-10 md:py-14 flex-grow relative">
+      <AquaDrift />
+      <div className="relative z-10 grid grid-cols-1 lg:grid-cols-[1.3fr_1fr] gap-10 lg:gap-16 items-start max-w-6xl mx-auto">
 
         {/* LEFT — the actual tool. Wider column, left-biased, not centered. */}
         <div className="flex flex-col gap-8">
@@ -111,16 +113,16 @@ export function Home() {
           {/* IN-PROGRESS WARNING */}
           {item && (
             <div
-              className="border-4 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
-              style={{ borderColor: 'var(--accent-secondary)', backgroundColor: 'color-mix(in oklch, var(--accent-secondary) 6%, transparent)' }}
+              className="border-4 rounded-[var(--radius-panel)] p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+              style={{ borderColor: 'var(--color-warning)', backgroundColor: 'color-mix(in oklch, var(--color-warning) 6%, transparent)' }}
             >
               <div className="flex items-start gap-3">
-                <AlertTriangle size={20} className="shrink-0 mt-0.5" style={{ color: 'var(--accent-secondary)' }} />
+                <AlertTriangle size={20} className="shrink-0 mt-0.5" style={{ color: 'var(--color-warning)' }} />
                 <div>
-                  <p className="font-bold uppercase tracking-widest text-sm" style={{ color: 'var(--accent-secondary)' }}>
+                  <p className="font-bold uppercase tracking-widest text-sm" style={{ color: 'var(--color-warning)' }}>
                     // UNFINISHED_WORK — STUDIO IN PROGRESS
                   </p>
-                  <p className="text-xs font-mono uppercase opacity-60 mt-1" style={{ color: 'var(--accent-secondary)' }}>
+                  <p className="text-xs font-mono uppercase opacity-60 mt-1" style={{ color: 'var(--color-warning)' }}>
                     {item.inputType === 'text'
                       ? (item.prompt
                           ? `"${item.prompt.slice(0, 40)}${item.prompt.length > 40 ? '...' : ''}"`
@@ -153,7 +155,7 @@ export function Home() {
               <button
                 key={t}
                 onClick={() => setInputType(t)}
-                className="border-2 px-4 py-2 text-sm uppercase font-bold tracking-widest transition-colors"
+                className="border-2 rounded-[var(--radius-pill)] px-4 py-2 text-sm uppercase font-bold tracking-widest transition-colors"
                 style={{
                   borderColor: 'var(--accent)',
                   backgroundColor: inputType === t ? 'var(--selected-bg)' : 'transparent',
@@ -170,7 +172,7 @@ export function Home() {
           {inputType === 'text' && (
             <div
               data-collider
-              className="border-4 p-8 md:p-10 flex flex-col items-start gap-6"
+              className="border-4 rounded-[var(--radius-panel)] p-8 md:p-10 flex flex-col items-start gap-6"
               style={{ borderColor: 'var(--accent)', backgroundColor: 'transparent' }}
             >
               <div className="flex items-center gap-3 pointer-events-none" style={{ color: 'var(--accent)' }}>
@@ -211,7 +213,7 @@ export function Home() {
           {inputType !== 'text' && (
             <div
               data-collider
-              className="relative border-4 border-dashed p-10 md:p-12 flex flex-col items-start justify-center text-left transition-colors duration-200"
+              className="relative border-4 border-dashed rounded-[var(--radius-panel)] p-10 md:p-12 flex flex-col items-start justify-center text-left transition-colors duration-200"
               style={{
                 borderColor: dragActive ? 'var(--accent-secondary)' : 'var(--accent)',
                 backgroundColor: dragActive ? 'var(--bg-card)' : 'transparent',
@@ -257,11 +259,11 @@ export function Home() {
           {/* ERROR MESSAGE — file upload modes only */}
           {uploadError && inputType !== 'text' && (
             <div
-              className="flex items-start gap-3 border-2 p-4"
+              className="flex items-start gap-3 border-2 rounded-[var(--radius-panel)] p-4"
               style={{
-                borderColor: 'var(--accent-secondary)',
-                color: 'var(--accent-secondary)',
-                backgroundColor: 'color-mix(in oklch, var(--accent-secondary) 8%, transparent)',
+                borderColor: 'var(--color-danger)',
+                color: 'var(--color-danger)',
+                backgroundColor: 'color-mix(in oklch, var(--color-danger) 8%, transparent)',
               }}
             >
               <AlertCircle size={20} className="shrink-0 mt-0.5" />
@@ -276,7 +278,7 @@ export function Home() {
         {/* RIGHT — the signature visual. Sticky so it stays in view while the
             left column (which can grow, e.g. the text input) scrolls past it. */}
         <div
-          className="lg:sticky lg:top-24 border-2 p-6 flex flex-col gap-4"
+          className="lg:sticky lg:top-24 border-2 rounded-[var(--radius-panel)] p-6 flex flex-col gap-4"
           style={{ borderColor: 'var(--border-muted)', backgroundColor: 'var(--bg-card)' }}
         >
           <p className="font-mono text-[10px] uppercase tracking-widest opacity-50" style={{ color: 'var(--text-muted)' }}>
