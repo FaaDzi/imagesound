@@ -474,7 +474,7 @@ export function Player() {
 
           {/* DUAL-MODE PANEL: ARC_EDITOR (long song, not done) or WAVEFORM_OUTPUT (playback / short) */}
           <div data-collider className="border-4 rounded-[var(--radius-panel)] p-4 h-64 relative overflow-hidden flex flex-col" style={{ borderColor: 'var(--accent)', backgroundColor: 'var(--bg)' }}>
-            <div className="absolute top-0 left-0 text-xs font-bold px-2 py-1 uppercase tracking-widest z-10" style={{ backgroundColor: 'var(--accent)', color: 'var(--selected-text)' }}>
+            <div className="absolute top-0 left-0 rounded-tl-[var(--radius-chip)] rounded-br-[var(--radius-chip)] text-xs font-bold px-2 py-1 uppercase tracking-widest z-10" style={{ backgroundColor: 'var(--accent)', color: 'var(--selected-text)' }}>
               {showArcEditor ? 'ARC_EDITOR' : 'WAVEFORM_OUTPUT'}
             </div>
 
@@ -766,7 +766,7 @@ export function Player() {
                       style={{
                         borderColor: 'var(--accent-secondary)',
                         backgroundColor: duration === d ? 'var(--accent-secondary)' : 'transparent',
-                        color: duration === d ? 'var(--selected-text)' : 'var(--accent-secondary)',
+                        color: duration === d ? 'var(--bg)' : 'var(--accent-secondary)',
                         opacity: duration === d ? 1 : 0.45,
                       }}
                     >
@@ -813,7 +813,7 @@ export function Player() {
                           style={{
                             borderColor: 'var(--accent-secondary)',
                             backgroundColor: modelQuality === m && !unavailable ? 'var(--accent-secondary)' : 'transparent',
-                            color: modelQuality === m && !unavailable ? 'var(--selected-text)' : 'var(--accent-secondary)',
+                            color: modelQuality === m && !unavailable ? 'var(--bg)' : 'var(--accent-secondary)',
                             opacity: unavailable ? 0.35 : modelQuality === m ? 1 : 0.55,
                             cursor: unavailable ? 'not-allowed' : 'pointer',
                           }}
@@ -853,7 +853,7 @@ export function Player() {
                       style={{
                         borderColor: 'var(--accent-secondary)',
                         backgroundColor: filterMode === fm ? 'var(--accent-secondary)' : 'transparent',
-                        color: filterMode === fm ? 'var(--selected-text)' : 'var(--accent-secondary)',
+                        color: filterMode === fm ? 'var(--bg)' : 'var(--accent-secondary)',
                         opacity: filterMode === fm ? 1 : 0.55,
                       }}
                     >

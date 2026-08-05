@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Geist:wght@100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Geist:wght@100..900&family=Geist+Mono:wght@100..900&display=swap');
 @import "tailwindcss";
 
 :root, body.dark {
@@ -21,7 +21,7 @@
   --border: oklch(30% 0.012 230);
   --border-muted: oklch(30% 0.012 230);
   --selected-bg: oklch(55% 0.19 230);
-  --selected-text: oklch(97% 0.006 230);
+  --selected-text: oklch(0% 0 230);
 
   --theme-font-ui: 'Geist', sans-serif;
   --theme-grid-opacity: 0; /* the cyberpunk grid overlay is retired — see Task 3 */
@@ -48,7 +48,7 @@ body.light {
   --border: oklch(85% 0.008 230);
   --border-muted: oklch(85% 0.008 230);
   --selected-bg: oklch(58% 0.17 230);
-  --selected-text: oklch(99% 0.004 230);
+  --selected-text: oklch(0% 0 230);
 
   --theme-font-ui: 'Geist', sans-serif;
   --theme-grid-opacity: 0;
@@ -72,7 +72,7 @@ body.light {
   --color-selected-text: var(--selected-text);
 
   /* Hallmark · 4pt named spacing scale — see design.md § Spacing.
-     Generates p-3xs..p-4xl / gap-3xs..gap-4xl etc. utilities. */
+     Generates p-3xs..p-3xl / gap-3xs..gap-3xl etc. utilities. */
   --spacing-3xs: 0.125rem;
   --spacing-2xs: 0.25rem;
   --spacing-xs: 0.5rem;
@@ -95,10 +95,8 @@ body {
   background-color: var(--bg);
   color: var(--accent);
   font-family: var(--font-ui);
-  -webkit-font-smoothing: none;
 }
 
-/* Hard borders and raw aesthetics */
 * {
   --tw-border-opacity: 1;
 }
@@ -166,7 +164,7 @@ body {
   }
 }
 
-/* Brutalist Scrollbar */
+/* Scrollbar */
 ::-webkit-scrollbar {
   width: 14px;
 }
@@ -178,7 +176,7 @@ body {
   background: var(--accent);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--accent-secondary);
+  background: oklch(from var(--accent) calc(l + 0.1) c h);
 }
 
 .brutal-btn {
@@ -222,6 +220,9 @@ body {
   transition: transform var(--dur-micro) var(--ease-out), box-shadow var(--dur-micro) var(--ease-out);
 }
 .brutal-btn-pink:hover {
+  box-shadow:
+    inset 0 1px 0 oklch(from var(--color-danger) calc(l + 0.3) calc(c * 0.3) h / 0.7),
+    0 6px 14px oklch(from var(--color-danger) l c h / 0.45);
   transform: translateY(-1px);
 }
 .brutal-btn-pink:active {
@@ -234,6 +235,12 @@ body {
 }
 @media (prefers-reduced-motion: reduce) {
   .brutal-btn-pink:hover, .brutal-btn-pink:active { transform: none; }
+}
+
+.nav-term__btn:focus-visible,
+.lib-icon-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .brutal-input {

@@ -49,7 +49,7 @@ is applied by `document.body.className = 'dark' | 'light'` in `App.tsx`
 --border:           oklch(30% 0.012 230);
 --border-muted:     oklch(30% 0.012 230);
 --selected-bg:      oklch(55% 0.19 230);
---selected-text:    oklch(97% 0.006 230);
+--selected-text:    oklch(0% 0 230);
 ```
 
 **Light (`body.light`):**
@@ -70,7 +70,7 @@ is applied by `document.body.className = 'dark' | 'light'` in `App.tsx`
 --border:           oklch(85% 0.008 230);
 --border-muted:     oklch(85% 0.008 230);
 --selected-bg:      oklch(58% 0.17 230);
---selected-text:    oklch(99% 0.004 230);
+--selected-text:    oklch(0% 0 230);
 ```
 
 Existing custom-property names are preserved from the old system (`--bg`,
@@ -78,20 +78,40 @@ Existing custom-property names are preserved from the old system (`--bg`,
 `--border`, `--text-primary`, `--text-muted`, `--text-heading`,
 `--selected-bg`, `--selected-text`) — only values and roles changed, plus new
 additions (`--bg-elevated`, `--input-bg`, `--accent-glow`, `--border-muted`,
-`--color-warning`, `--color-danger`). Elevation reads as *lighter*
-(`--bg` → `--bg-card` → `--bg-elevated`), never shadowed.
+`--color-warning`, `--color-danger`). In dark mode, elevation reads as
+*lighter* (`--bg` 13% → `--bg-card` 17% → `--bg-elevated` 21%), never
+shadowed. Light mode's ramp is not monotonic (`--bg` 97% → `--bg-card` 94% →
+`--bg-elevated` 99%) — `--bg-card` is a subtle recessed tint rather than a
+lighter elevation step, and `--bg-elevated` currently has no consumers in
+`src/`.
 
-Semantic roles, reassigned from the old flat-neon accents:
+Roles, reassigned from the old flat-neon accents:
 - `--accent` — the one dominant accent (buttons, active nav pill, focus
   glow, links).
-- `--accent-secondary` — warning/unsaved/destructive-adjacent context (e.g.
-  GeneratePanel's unsaved-item border/label).
-- `--accent-tertiary` — informational / Library-context accent (Library's
-  header icon, saved-state border, info actions).
+- `--accent-secondary` / `--accent-tertiary` — decorative tonal-blue steps in
+  the same 230°-hue accent family (chroma 0.19 → 0.09 → 0.07), used for
+  neutral status/informational text that isn't a warning or an error (e.g.
+  GeneratePanel's "APPLYING EFFECTS", Player's analyzing-image status,
+  Library's `SYS_ARCHIVES` divider). **Never** semantic warning/error
+  substitutes — that's what `--color-warning`/`--color-danger` are for.
 - `--color-warning` — amber semantic warning (quality-check flags, unsaved
-  badges).
+  badges/tiles).
 - `--color-danger` — semantic destructive/error red (delete actions, error
   panels).
+
+`--selected-text` is pure black (`oklch(0% 0 230)`) in both modes — every
+site that uses it pairs it with a mid-to-light fill (`--accent`,
+`--accent-tertiary`, `--color-warning`, or `--selected-bg`, all L52-74% in
+either mode), and black is the only ink that clears 4.5:1 against all of
+them, including the worst case (`--accent-tertiary` at L52% in light mode).
+**Exception:** the three toggle-button groups in `Player.tsx` (duration,
+model quality, output-quality filter) fill their active state with
+`--accent-secondary`, which — unlike the other fills — flips direction
+between modes (L74% dark / L42% light). Black text would fail AA against the
+light-mode L42% fill, so those three sites use `var(--bg)` instead of
+`var(--selected-text)`: `--bg`'s own per-mode value is already tuned to
+contrast against page content, and it happens to also contrast correctly
+against `--accent-secondary`'s inverted fill in both modes.
 
 `--theme-grid-opacity: 0` is a retired token (the old cyberpunk grid overlay)
 kept at zero rather than deleted, so nothing that still references it breaks.
@@ -111,7 +131,7 @@ There is no generic zero/hard-edge radius token anymore — the old system's
 New pairing, defined via the Google Fonts `@import` at the top of
 `src/index.css`:
 ```css
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Geist:wght@100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Geist:wght@100..900&family=Geist+Mono:wght@100..900&display=swap');
 ```
 - **`--font-display: 'Syne', sans-serif;`** — kept from the old system for
   headings (700/800, uppercase). It's a distinctive geometric face, not
@@ -123,10 +143,7 @@ New pairing, defined via the Google Fonts `@import` at the top of
 - **`--font-mono: 'Geist Mono', monospace;`** — kept, but demoted to
   "genuinely tabular content only" (uppercase tracking-widest labels,
   numeric/status readouts, code-like strings), not the general UI voice
-  anymore. Note: only Syne and Geist are actually fetched by the `@import`
-  above — `'Geist Mono'` itself is not loaded, so `font-mono` usage falls
-  back to the browser's generic monospace unless Geist Mono happens to be
-  installed locally.
+  anymore.
 - Two families loaded (Syne + Geist) plus the monospace fallback exception —
   matches the 2+1 rule the old system also followed.
 
@@ -268,10 +285,9 @@ single-line shape (`Ft2`) the old system used, restyled to the new tokens.
 ## What pages MUST share
 
 - The wordmark (`imagesound`, Syne, glitch effect — unchanged).
-- The palette above: one dominant accent (`--accent`), two reassigned
-  semantic accents (`--accent-secondary` = warning/unsaved,
-  `--accent-tertiary` = informational/Library), `--color-warning` /
-  `--color-danger` for status.
+- The palette above: one dominant accent (`--accent`), two decorative tonal
+  steps (`--accent-secondary`, `--accent-tertiary` — never semantic),
+  `--color-warning` / `--color-danger` for all semantic status.
 - Syne (display) + Geist (UI) as the two loaded families; `--font-mono`
   reserved for genuinely tabular/labeled content only.
 - The three-step radius scale (`--radius-pill` / `--radius-panel` /
@@ -311,7 +327,7 @@ single-line shape (`Ft2`) the old system used, restyled to the new tokens.
   --border:           oklch(30% 0.012 230);
   --border-muted:     oklch(30% 0.012 230);
   --selected-bg:      oklch(55% 0.19 230);
-  --selected-text:    oklch(97% 0.006 230);
+  --selected-text:    oklch(0% 0 230);
 
   --radius-pill:  999px;
   --radius-panel: 14px;
@@ -335,7 +351,7 @@ body.light {
   --border:           oklch(85% 0.008 230);
   --border-muted:     oklch(85% 0.008 230);
   --selected-bg:      oklch(58% 0.17 230);
-  --selected-text:    oklch(99% 0.004 230);
+  --selected-text:    oklch(0% 0 230);
 }
 
 @theme {

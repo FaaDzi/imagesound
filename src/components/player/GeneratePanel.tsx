@@ -42,7 +42,7 @@ export function GeneratePanel({
     generation.phase === 'processing';
 
   return (
-    <div data-collider className="border-4 p-4 flex flex-col gap-3" style={{ borderColor: 'var(--accent)', backgroundColor: 'var(--bg)' }}>
+    <div data-collider className="border-4 rounded-[var(--radius-panel)] p-4 flex flex-col gap-3" style={{ borderColor: 'var(--accent)', backgroundColor: 'var(--bg)' }}>
       <div className="flex items-center justify-between">
         <h4 className="font-bold uppercase tracking-widest text-sm" style={{ color: 'var(--accent)' }}>
           [ GENERATE_SONG ]

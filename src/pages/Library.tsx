@@ -256,9 +256,6 @@ export function Library() {
                 className={`border-2 brutal-card p-0 flex flex-col group ${isHero ? 'md:col-span-2' : ''}`}
                 style={{
                   borderColor: item.saved ? 'var(--accent-tertiary)' : 'var(--color-warning)',
-                  boxShadow: item.saved
-                    ? '-6px 6px 0 0 var(--accent-tertiary)'
-                    : '-6px 6px 0 0 var(--color-warning)',
                 }}
               >
                 {/* HEADER */}

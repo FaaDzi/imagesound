@@ -67,7 +67,7 @@ export function Login() {
                 className="text-xs uppercase tracking-widest font-bold flex items-center gap-1.5"
                 style={{ color: 'var(--accent)' }}
               >
-                <span aria-hidden="true" style={{ opacity: 0.6 }}>&gt;</span> Username
+                Username
               </label>
               <input
                 id="login-username"
@@ -87,7 +87,7 @@ export function Login() {
                 className="text-xs uppercase tracking-widest font-bold flex items-center gap-1.5"
                 style={{ color: 'var(--accent)' }}
               >
-                <span aria-hidden="true" style={{ opacity: 0.6 }}>&gt;</span> Password
+                Password
               </label>
               <input
                 id="login-password"
