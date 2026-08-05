@@ -479,8 +479,8 @@ export function Player() {
           <div className="col-span-1 lg:col-span-2 flex flex-col gap-8">
 
           {/* DUAL-MODE PANEL: ARC_EDITOR (long song, not done) or WAVEFORM_OUTPUT (playback / short) */}
-          <div data-collider className="border-4 p-4 h-64 relative overflow-hidden flex flex-col" style={{ borderColor: 'var(--accent)', backgroundColor: 'var(--bg)' }}>
-            <div className="absolute top-0 left-0 text-xs font-bold px-2 py-1 uppercase tracking-widest z-10" style={{ backgroundColor: 'var(--accent)', color: 'var(--selected-text)' }}>
+          <div data-collider className="border-4 rounded-[var(--radius-panel)] p-4 h-64 relative overflow-hidden flex flex-col" style={{ borderColor: 'var(--accent)', backgroundColor: 'var(--bg)' }}>
+            <div className="absolute top-0 left-0 rounded-tl-[var(--radius-chip)] rounded-br-[var(--radius-chip)] text-xs font-bold px-2 py-1 uppercase tracking-widest z-10" style={{ backgroundColor: 'var(--accent)', color: 'var(--selected-text)' }}>
               {showArcEditor ? 'ARC_EDITOR' : 'WAVEFORM_OUTPUT'}
             </div>
 
@@ -568,12 +568,11 @@ export function Player() {
                     <Rewind size={32} />
                   </button>
                   <button
-                    className="w-16 h-16 border-4 flex flex-col items-center justify-center transition-colors"
+                    className="w-16 h-16 border-4 rounded-[var(--radius-chip)] flex flex-col items-center justify-center transition-colors"
                     onClick={handlePlayPause}
                     aria-label={isPlaying ? 'Pause' : 'Play'}
                     title={isPlaying ? 'Pause' : 'Play'}
                     style={{
-                      borderRadius: '0',
                       backgroundColor: 'var(--bg)',
                       color: 'var(--accent)',
                       borderColor: 'var(--accent)',
@@ -658,15 +657,15 @@ export function Player() {
                         <>
                           {describeError && (
                             <div className="flex items-start justify-between gap-2 mb-1">
-                              <p className="text-xs" style={{ color: 'var(--accent-secondary)' }}>
+                              <p className="text-xs" style={{ color: 'var(--color-danger)' }}>
                                 {describeError}
                               </p>
                               <button
                                 onClick={retryDescribe}
                                 className="text-[10px] font-bold uppercase tracking-widest border px-2 py-0.5 shrink-0 transition-colors"
-                                style={{ borderColor: 'var(--accent-secondary)', color: 'var(--accent-secondary)' }}
-                                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--accent-secondary)'; e.currentTarget.style.color = 'var(--bg)'; }}
-                                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--accent-secondary)'; }}
+                                style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }}
+                                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--color-danger)'; e.currentTarget.style.color = 'var(--bg)'; }}
+                                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--color-danger)'; }}
                               >
                                 RETRY
                               </button>
@@ -789,7 +788,7 @@ export function Player() {
                       style={{
                         borderColor: 'var(--accent-secondary)',
                         backgroundColor: duration === d ? 'var(--accent-secondary)' : 'transparent',
-                        color: duration === d ? 'var(--selected-text)' : 'var(--accent-secondary)',
+                        color: duration === d ? 'var(--bg)' : 'var(--accent-secondary)',
                         opacity: duration === d ? 1 : 0.45,
                       }}
                     >
@@ -836,7 +835,7 @@ export function Player() {
                           style={{
                             borderColor: 'var(--accent-secondary)',
                             backgroundColor: modelQuality === m && !unavailable ? 'var(--accent-secondary)' : 'transparent',
-                            color: modelQuality === m && !unavailable ? 'var(--selected-text)' : 'var(--accent-secondary)',
+                            color: modelQuality === m && !unavailable ? 'var(--bg)' : 'var(--accent-secondary)',
                             opacity: unavailable ? 0.35 : modelQuality === m ? 1 : 0.55,
                             cursor: unavailable ? 'not-allowed' : 'pointer',
                           }}
@@ -876,7 +875,7 @@ export function Player() {
                       style={{
                         borderColor: 'var(--accent-secondary)',
                         backgroundColor: filterMode === fm ? 'var(--accent-secondary)' : 'transparent',
-                        color: filterMode === fm ? 'var(--selected-text)' : 'var(--accent-secondary)',
+                        color: filterMode === fm ? 'var(--bg)' : 'var(--accent-secondary)',
                         opacity: filterMode === fm ? 1 : 0.55,
                       }}
                     >

@@ -223,13 +223,13 @@ export function Library() {
       )}
 
       {fetchError && (
-        <div className="border-2 p-4 font-mono text-sm uppercase" style={{ borderColor: 'var(--accent-secondary)', color: 'var(--accent-secondary)' }}>
+        <div className="border-2 rounded-[var(--radius-panel)] p-4 text-sm" style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }}>
           ERROR: {fetchError}
         </div>
       )}
 
       {!loading && !fetchError && items.length === 0 && (
-        <div className="border-4 border-dashed p-16 text-center" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-muted)' }}>
+        <div className="border-4 border-dashed rounded-[var(--radius-panel)] p-16 text-center" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-muted)' }}>
           <h3 className="text-2xl font-bold uppercase tracking-widest mb-2">[ DATA_VOID ]</h3>
           <p className="monospace text-sm uppercase">NO FILES FOUND IN ARCHIVE REGISTRY.</p>
         </div>
@@ -255,17 +255,14 @@ export function Library() {
                 key={item.id}
                 className={`border-2 brutal-card p-0 flex flex-col group ${isHero ? 'md:col-span-2' : ''}`}
                 style={{
-                  borderColor: item.saved ? 'var(--accent-tertiary)' : 'var(--accent-secondary)',
-                  boxShadow: item.saved
-                    ? '-6px 6px 0 0 var(--accent-tertiary)'
-                    : '-6px 6px 0 0 var(--accent-secondary)',
+                  borderColor: item.saved ? 'var(--accent-tertiary)' : 'var(--color-warning)',
                 }}
               >
                 {/* HEADER */}
                 <div
                   className="p-2 flex justify-between items-center"
                   style={{
-                    backgroundColor: item.saved ? 'var(--accent-tertiary)' : 'var(--accent-secondary)',
+                    backgroundColor: item.saved ? 'var(--accent-tertiary)' : 'var(--color-warning)',
                     color: 'var(--selected-text)',
                   }}
                 >
@@ -326,7 +323,7 @@ export function Library() {
                         <Check size={12} style={{ color: 'var(--accent)' }} aria-label="Quality check: satisfactory" />
                       )}
                       {!isMidi && item.fad_verdict === 'unsatisfactory' && (
-                        <AlertTriangle size={12} style={{ color: 'var(--accent-secondary)' }} aria-label="Quality check: unsatisfactory" />
+                        <AlertTriangle size={12} style={{ color: 'var(--color-warning)' }} aria-label="Quality check: unsatisfactory" />
                       )}
                     </div>
                   </div>
@@ -485,7 +482,7 @@ export function Library() {
                       disabled={!loggedIn}
                       title={!loggedIn ? 'Login required' : 'Save to library'}
                       className="lib-icon-btn p-1 px-3 border text-xs font-bold uppercase tracking-widest flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
-                      style={{ '--btn-c': 'var(--accent-secondary)' } as React.CSSProperties}
+                      style={{ '--btn-c': 'var(--color-warning)' } as React.CSSProperties}
                     >
                       <Save size={12} /> SAVE
                     </button>

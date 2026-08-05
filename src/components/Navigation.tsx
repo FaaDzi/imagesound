@@ -9,8 +9,7 @@ const ROUTES = [
   { path: '/library', flag: 'library' },
 ] as const;
 
-// N8 Terminal-command nav — routes read as CLI flags on a single prompt line,
-// with a blinking caret at the end. See design.md § Nav.
+// Pill-based nav — see docs/superpowers/specs/2026-08-04-y2k-aqua-redesign-design.md § Nav.
 export function Navigation({ theme, setTheme, physicsOn, setPhysicsOn }: {
   theme: string,
   setTheme: React.Dispatch<React.SetStateAction<string>>,
@@ -29,15 +28,13 @@ export function Navigation({ theme, setTheme, physicsOn, setPhysicsOn }: {
 
   return (
     <header
-      className="border-b-2 px-4 md:px-8 py-4 sticky top-0 z-50"
-      style={{ backgroundColor: 'var(--bg)', borderBottomColor: 'var(--border-muted)' }}
+      className="px-4 md:px-8 py-3 sticky top-0 z-50"
+      style={{ backgroundColor: 'var(--bg)', borderBottom: '1px solid var(--border)' }}
     >
-      <pre className="m-0 font-mono flex flex-wrap items-baseline gap-x-3 gap-y-1.5 text-sm md:text-base whitespace-pre-wrap">
-        <span aria-hidden="true" style={{ color: 'var(--accent)' }}>{'>'}</span>
-
+      <nav className="m-0 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-sm md:text-base">
         <Link
           to="/"
-          className="glitch font-bold tracking-widest uppercase"
+          className="glitch font-bold tracking-widest uppercase mr-2"
           data-text="imagesound"
           style={{ color: 'var(--text-heading)' }}
         >
@@ -50,76 +47,71 @@ export function Navigation({ theme, setTheme, physicsOn, setPhysicsOn }: {
             <Link
               key={r.path}
               to={r.path}
-              className="nav-term__btn"
+              className="nav-term__btn px-3 py-1.5"
               style={{
-                color: active ? 'var(--accent)' : 'var(--text-muted)',
-                textDecoration: active ? 'underline' : 'none',
-                textUnderlineOffset: '3px',
+                color: active ? 'var(--selected-text)' : 'var(--text-muted)',
+                backgroundColor: active ? 'var(--accent)' : 'transparent',
               }}
               onMouseEnter={e => { if (!active) e.currentTarget.style.color = 'var(--accent)'; }}
               onMouseLeave={e => { if (!active) e.currentTarget.style.color = 'var(--text-muted)'; }}
             >
-              --{r.flag}
+              {r.flag}
             </Link>
           );
         })}
 
         <button
           onClick={toggleTheme}
-          className="nav-term__btn inline-flex items-center gap-1 bg-transparent border-0 p-0 font-mono cursor-pointer"
+          className="nav-term__btn inline-flex items-center gap-1.5 bg-transparent border-0 px-3 py-1.5 cursor-pointer"
           style={{ color: 'var(--text-muted)' }}
           onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent)'; }}
           onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; }}
-          aria-label={`--theme:${theme}, toggle theme`}
+          aria-label={`theme: ${theme}, toggle theme`}
           title="Toggle theme"
         >
-          --theme:{theme}
           {theme === 'light' ? <Sun size={14} /> : <Moon size={14} />}
         </button>
 
         <button
           onClick={() => setPhysicsOn(prev => !prev)}
-          className="nav-term__btn inline-flex items-center gap-1 bg-transparent border-0 p-0 font-mono cursor-pointer"
+          className="nav-term__btn inline-flex items-center gap-1.5 bg-transparent border-0 px-3 py-1.5 cursor-pointer"
           style={{ color: physicsOn ? 'var(--accent)' : 'var(--text-muted)' }}
           onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent)'; }}
           onMouseLeave={e => { if (!physicsOn) e.currentTarget.style.color = 'var(--text-muted)'; }}
-          aria-label={`--physics:${physicsOn ? 'on' : 'off'}, toggle physics ball toy`}
+          aria-label={`physics: ${physicsOn ? 'on' : 'off'}, toggle physics ball toy`}
           title="Toggle physics ball toy"
         >
-          --physics:{physicsOn ? 'on' : 'off'}
           <Circle size={14} />
         </button>
+
+        <span className="flex-grow" />
 
         {username ? (
           <button
             onClick={handleLogout}
-            className="nav-term__btn inline-flex items-center gap-1 bg-transparent border-0 p-0 font-mono cursor-pointer"
+            className="nav-term__btn inline-flex items-center gap-1.5 bg-transparent border-0 px-3 py-1.5 cursor-pointer"
             style={{ color: 'var(--text-muted)' }}
             onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent)'; }}
             onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; }}
-            aria-label={`--user:${username}, log out`}
+            aria-label={`user: ${username}, log out`}
             title="Log out"
           >
-            --user:{username}
+            {username}
             <LogOut size={14} />
           </button>
         ) : (
           <Link
             to="/login"
-            className="nav-term__btn inline-flex items-center gap-1"
-            style={{ color: 'var(--accent-secondary)', textDecoration: 'none' }}
-            onMouseEnter={e => { e.currentTarget.style.textDecoration = 'underline'; }}
-            onMouseLeave={e => { e.currentTarget.style.textDecoration = 'none'; }}
-            aria-label="--login, log in"
+            className="nav-term__btn inline-flex items-center gap-1.5 px-3 py-1.5"
+            style={{ color: 'var(--selected-text)', backgroundColor: 'var(--accent)', textDecoration: 'none' }}
+            aria-label="log in"
             title="Log in"
           >
-            --login
+            Log in
             <LogIn size={14} />
           </Link>
         )}
-
-        <span className="nav-term__caret" aria-hidden="true" style={{ color: 'var(--accent)' }}>▮</span>
-      </pre>
+      </nav>
     </header>
   );
 }

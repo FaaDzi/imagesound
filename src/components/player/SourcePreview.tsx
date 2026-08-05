@@ -27,8 +27,8 @@ export function SourcePreview({
   filename, imageUrl, rawUrl, fileId, isImage, isText, isAudio, mode, textPreview,
 }: SourcePreviewProps) {
   return (
-    <div className="col-span-1 border-2 p-4 flex flex-col relative h-[400px]" style={{ borderColor: 'var(--accent-tertiary)', backgroundColor: 'var(--bg-card)' }}>
-      <div className="absolute top-0 right-0 text-xs font-bold px-2 py-1 uppercase tracking-widest" style={{ backgroundColor: 'var(--accent-tertiary)', color: 'var(--selected-text)' }}>
+    <div className="col-span-1 border-2 rounded-[var(--radius-panel)] overflow-hidden p-4 flex flex-col relative h-[400px]" style={{ borderColor: 'var(--accent-tertiary)', backgroundColor: 'var(--bg-card)' }}>
+      <div className="absolute top-0 right-0 rounded-tr-[var(--radius-chip)] rounded-bl-[var(--radius-chip)] text-xs font-bold px-2 py-1 uppercase tracking-widest" style={{ backgroundColor: 'var(--accent-tertiary)', color: 'var(--selected-text)' }}>
         SRC_INPUT
       </div>
 
@@ -36,12 +36,12 @@ export function SourcePreview({
         {filename}
       </h3>
 
-      <div className="flex-grow flex flex-col items-center justify-center border border-dashed overflow-hidden relative group" style={{ borderColor: 'var(--accent-tertiary)' }}>
+      <div className="flex-grow flex flex-col items-center justify-center border border-dashed rounded-[var(--radius-chip)] overflow-hidden relative group" style={{ borderColor: 'var(--accent-tertiary)' }}>
         {isImage ? (
           <>
             <div className="flex-grow relative w-full h-full overflow-hidden border-b border-dashed" style={{ borderBottomColor: 'var(--accent-tertiary)' }}>
               <img src={imageUrl} alt="Source" className="w-full h-full object-cover filter grayscale sepia group-hover:filter-none transition-all duration-700" />
-              <div className="absolute bottom-2 right-2 px-2 py-1 border text-xs uppercase tracking-widest font-bold" style={{ backgroundColor: 'var(--bg)', borderColor: 'var(--accent-tertiary)' }}>
+              <div className="absolute bottom-2 right-2 px-2 py-1 border rounded-[var(--radius-chip)] text-xs uppercase tracking-widest font-bold" style={{ backgroundColor: 'var(--bg)', borderColor: 'var(--accent-tertiary)' }}>
                 M:{mode}
               </div>
             </div>

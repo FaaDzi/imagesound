@@ -4,159 +4,360 @@ A locked design system for this app. Every page redesign reads this file before
 emitting code. Do not regenerate per page — extend or amend this file when the
 system needs to grow.
 
-This system is a **custom (tuned) theme**, not a catalog pick — anchored on the
-app's own established identity (Syne + Geist Mono, phosphor-green accent on
-near-black, hard-bordered brutalist panels) rather than swapped for one of the
-20 named catalog themes. Pre-flight found a genuine, consistent identity in
-use everywhere; the job here is to fix hierarchy and structure around it, not
-replace it.
+This system is a **Y2K / Aqua-Chrome** material language — early Mac OS X-era
+glossy glass/chrome (cool blue-grey, pillowy pill buttons with a bevel
+highlight) — replacing the app's previous hard-edged CRT-terminal identity
+(phosphor green on near-black, hard borders, offset shadows, zero radius).
+The wordmark, route set, and copy voice carry over untouched; the material
+underneath them changed completely.
 
 ## Genre
-Atmospheric (dark-mode generative AI tool). One deliberate deviation from the
-genre's own defaults: atmospheric's baseline voice is soft blur/glow/warm-bloom
-(N5 floating-pill nav, elevated cards over hairlines). ImageSound's existing
-hard-edged CRT-terminal identity is kept instead — it is itself a strong
-anti-slop signal (about as far from "generic AI atmospheric glow" as a dark
-tool can get), and erasing it to chase genre-default softness would trade a
-real point of view for a default. The theme is closest to Hallmark's own
-**Terminal** catalog theme (mono-everywhere, phosphor-green accent) but tuned
-to keep the existing Syne display face rather than going fully monospace.
 
-## Macrostructure family
-No marketing pages exist in this app — all three routes are functional tool
-screens. Macrostructures are used here as *rhythm and hierarchy references*,
-adapted for real live content instead of literal marketing sections (no fake
-screenshots, no invented copy).
-
-- **App pages** (Home, Player): Workbench discipline — small, functional
-  headings that don't shout; the real interactive content (upload target,
-  generation panels) IS the primary visual, not a screenshot of it; a
-  restrained functional CTA, not a sales CTA.
-- **Content pages** (Library): Bento Grid discipline — modular tiles of
-  *varying* size instead of uniform equal cards; rhythm comes from size
-  variation (most-recent / longer entries get more visual weight).
+Operate mode (task-completion tool: upload → generate → save), not a
+marketing site. Brand lives in precise component-level detail — button
+bevels, glow treatment, corner-radius consistency, the one ambient motif —
+not in landing-page-style hero rhetoric. One deliberate signature visual
+moment survives from the old system's discipline (the waveform/spectrogram
+motif, unchanged in role, see Motion below); everything around it is now
+soft-glass instead of hard-terminal.
 
 ## Theme
-Existing CSS custom-property names are preserved (`--bg`, `--bg-card`,
-`--accent`, `--accent-secondary`, `--accent-tertiary`, `--border`,
-`--text-primary`, `--text-muted`, `--text-heading`, `--selected-bg`,
-`--selected-text`) — only their **values** and **roles** change, so nothing
-downstream breaks. New tokens are added, not substituted in as replacements.
 
-- `--bg` — was flat `#0a0a0a` (zero chroma — the banned "flat grey"). Now
-  tinted toward the accent hue: `oklch(9% 0.012 145)`.
-- `--bg-card` — `oklch(13% 0.014 145)` (was flat `#111111`).
-- `--bg-elevated` *(new)* — `oklch(16% 0.016 145)` — a third elevation step;
-  elevation reads as *lighter*, not shadowed, per dark-mode discipline.
-- `--accent` — **kept exactly as-is**, `#39ff14`. This is the one dominant
-  accent; everything else defers to it.
-- `--accent-secondary` — dimmed from full-brightness `#ff2d78` to
-  `oklch(58% 0.15 350)`. Reassigned a strict semantic job: warning / unsaved /
-  destructive-adjacent only — never used as a co-equal decorative accent.
-- `--accent-tertiary` — dimmed from full-brightness `#0ff` to
-  `oklch(62% 0.11 200)`. Reassigned: informational / Library context only.
-- `--color-warning` *(new)* — `oklch(80% 0.15 85)` amber, replacing the
-  hardcoded `#facc15` inline in `Player.tsx`.
-- `--color-danger` — red, kept for destructive actions (PURGE), unchanged.
-- Light theme mirrors the same relationships; `--bg: #ffffff` (pure white,
-  banned as a base surface) becomes a fractionally tinted `oklch(98% 0.006 145)`.
+Single anchor hue, **230° (cool blue)**, shared by both light and dark mode —
+the hue never switches between modes, only lightness/chroma move (dark mode
+gets more chroma plus glow; light mode stays airy). All values are OKLCH,
+defined once in `src/index.css` under `:root, body.dark` (dark is the
+default/root state) with `body.light` as the override block. The active mode
+is applied by `document.body.className = 'dark' | 'light'` in `App.tsx`
+(persisted to `localStorage`), not a `data-theme` attribute.
+
+**Dark (`:root, body.dark`):**
+```css
+--bg:               oklch(13% 0.014 230);
+--bg-card:          oklch(17% 0.016 230);
+--bg-elevated:      oklch(21% 0.018 230);
+--input-bg:         oklch(13% 0.014 230);
+--text-primary:     oklch(94% 0.008 230);
+--text-muted:       oklch(68% 0.010 230);
+--text-heading:     oklch(94% 0.008 230);
+--accent:           oklch(55% 0.19 230);
+--accent-glow:      oklch(55% 0.19 230 / 0.5);
+--accent-secondary: oklch(74% 0.09 230);
+--accent-tertiary:  oklch(60% 0.07 230);
+--color-warning:    oklch(72% 0.15 70);
+--color-danger:     oklch(62% 0.20 25);
+--border:           oklch(30% 0.012 230);
+--border-muted:     oklch(30% 0.012 230);
+--selected-bg:      oklch(55% 0.19 230);
+--selected-text:    oklch(0% 0 230);
+```
+
+**Light (`body.light`):**
+```css
+--bg:               oklch(97% 0.008 230);
+--bg-card:          oklch(94% 0.010 230);
+--bg-elevated:      oklch(99% 0.006 230);
+--input-bg:         oklch(99% 0.006 230);
+--text-primary:     oklch(20% 0.012 230);
+--text-muted:       oklch(45% 0.010 230);
+--text-heading:     oklch(20% 0.012 230);
+--accent:           oklch(58% 0.17 230);
+--accent-glow:      oklch(58% 0.17 230 / 0.35);
+--accent-secondary: oklch(42% 0.10 230);
+--accent-tertiary:  oklch(52% 0.07 230);
+--color-warning:    oklch(70% 0.16 70);
+--color-danger:     oklch(58% 0.20 25);
+--border:           oklch(85% 0.008 230);
+--border-muted:     oklch(85% 0.008 230);
+--selected-bg:      oklch(58% 0.17 230);
+--selected-text:    oklch(0% 0 230);
+```
+
+Existing custom-property names are preserved from the old system (`--bg`,
+`--bg-card`, `--accent`, `--accent-secondary`, `--accent-tertiary`,
+`--border`, `--text-primary`, `--text-muted`, `--text-heading`,
+`--selected-bg`, `--selected-text`) — only values and roles changed, plus new
+additions (`--bg-elevated`, `--input-bg`, `--accent-glow`, `--border-muted`,
+`--color-warning`, `--color-danger`). In dark mode, elevation reads as
+*lighter* (`--bg` 13% → `--bg-card` 17% → `--bg-elevated` 21%), never
+shadowed. Light mode's ramp is not monotonic (`--bg` 97% → `--bg-card` 94% →
+`--bg-elevated` 99%) — `--bg-card` is a subtle recessed tint rather than a
+lighter elevation step, and `--bg-elevated` currently has no consumers in
+`src/`.
+
+Roles, reassigned from the old flat-neon accents:
+- `--accent` — the one dominant accent (buttons, active nav pill, focus
+  glow, links).
+- `--accent-secondary` / `--accent-tertiary` — decorative tonal-blue steps in
+  the same 230°-hue accent family (chroma 0.19 → 0.09 → 0.07), used for
+  neutral status/informational text that isn't a warning or an error (e.g.
+  GeneratePanel's "APPLYING EFFECTS", Player's analyzing-image status,
+  Library's `SYS_ARCHIVES` divider). **Never** semantic warning/error
+  substitutes — that's what `--color-warning`/`--color-danger` are for.
+- `--color-warning` — amber semantic warning (quality-check flags, unsaved
+  badges/tiles).
+- `--color-danger` — semantic destructive/error red (delete actions, error
+  panels).
+
+`--selected-text` is pure black (`oklch(0% 0 230)`) in both modes — every
+site that uses it pairs it with a mid-to-light fill (`--accent`,
+`--accent-tertiary`, `--color-warning`, or `--selected-bg`, all L52-74% in
+either mode), and black is the only ink that clears 4.5:1 against all of
+them, including the worst case (`--accent-tertiary` at L52% in light mode).
+**Exception:** the three toggle-button groups in `Player.tsx` (duration,
+model quality, output-quality filter) fill their active state with
+`--accent-secondary`, which — unlike the other fills — flips direction
+between modes (L74% dark / L42% light). Black text would fail AA against the
+light-mode L42% fill, so those three sites use `var(--bg)` instead of
+`var(--selected-text)`: `--bg`'s own per-mode value is already tuned to
+contrast against page content, and it happens to also contrast correctly
+against `--accent-secondary`'s inverted fill in both modes.
+
+`--theme-grid-opacity: 0` is a retired token (the old cyberpunk grid overlay)
+kept at zero rather than deleted, so nothing that still references it breaks.
+
+Radius tokens (also defined in the `:root, body.dark` block — one consistent
+three-step scale, no ad-hoc radius values):
+```css
+--radius-pill:  999px;  /* buttons, chips, pills, nav items */
+--radius-panel: 14px;   /* cards, panels, containers, modals */
+--radius-chip:  9px;    /* inputs, small tags, inline icon buttons */
+```
+There is no generic zero/hard-edge radius token anymore — the old system's
+`--radius: 0px` is fully retired.
 
 ## Typography
-Unchanged — Syne (display, 700/800, uppercase) + Geist Mono (body/UI). Two
-families, which is canonical under the 2+1 rule. No font changes; the pairing
-already avoids "Inter-everywhere" and reads as intentional.
+
+New pairing, defined via the Google Fonts `@import` at the top of
+`src/index.css`:
+```css
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Geist:wght@100..900&family=Geist+Mono:wght@100..900&display=swap');
+```
+- **`--font-display: 'Syne', sans-serif;`** — kept from the old system for
+  headings (700/800, uppercase). It's a distinctive geometric face, not
+  inherently brutalist, so it survives the material change.
+- **`--font-ui: 'Geist', sans-serif;`** — the new general body/UI voice,
+  replacing Geist Mono in that role. `body`'s `font-family` is
+  `var(--font-ui)`. Clean humanist-sans, pairs with Syne's geometric display
+  voice.
+- **`--font-mono: 'Geist Mono', monospace;`** — kept, but demoted to
+  "genuinely tabular content only" (uppercase tracking-widest labels,
+  numeric/status readouts, code-like strings), not the general UI voice
+  anymore.
+- Two families loaded (Syne + Geist) plus the monospace fallback exception —
+  matches the 2+1 rule the old system also followed.
 
 ## Spacing
-New named 4pt scale added to the Tailwind `@theme` block (generates
-`p-3xs…p-4xl` etc. utilities alongside the existing ad-hoc values):
 
-```
+Named 4pt scale in the Tailwind `@theme` block (generates `p-3xs…p-3xl`,
+`gap-3xs…gap-3xl`, etc. utilities), unchanged from the prior pass:
+```css
 --spacing-3xs: 0.125rem;  --spacing-2xs: 0.25rem;  --spacing-xs: 0.5rem;
 --spacing-sm:  0.75rem;   --spacing-md:  1rem;     --spacing-lg: 1.5rem;
 --spacing-xl:  2.5rem;    --spacing-2xl: 4rem;     --spacing-3xl: 6rem;
 ```
 
-Used to give the redesigned sections *varied* rhythm (the audit's "every
-section padded the same" finding) — not a mandate to rewrite every existing
-padding value in the app; scope is the files this pass touches.
-
 ## Motion
-- Easings: `--ease-out: cubic-bezier(0.16,1,0.3,1)`, `--ease-in:
-  cubic-bezier(0.7,0,0.84,0)`, `--ease-in-out: cubic-bezier(0.65,0,0.35,1)`.
+
+- Easings: `--ease-out: cubic-bezier(0.16, 1, 0.3, 1)`, `--ease-in:
+  cubic-bezier(0.7, 0, 0.84, 0)`, `--ease-in-out: cubic-bezier(0.65, 0, 0.35,
+  1)`.
 - Durations: `--dur-micro: 120ms`, `--dur-short: 220ms`, `--dur-long: 420ms`.
-- **One signature motif**: a hand-built CSS/canvas waveform-to-spectrogram
-  visual (Tier-A enrichment). Appears twice — as Home's hero visual (idle
-  ambient animation, ties directly to what the product does) and as the
-  one-shot reveal when a generation completes in the Player (replaces the
-  current instant-appear + `animate-pulse` treatment with one deliberate
-  moment). Not used anywhere else — two slots, same rule as the typographic
-  outlier discipline.
-- `prefers-reduced-motion: reduce` collapses all of the above to a ≤150ms
-  opacity crossfade; the waveform's idle animation pauses entirely (it's
-  ambient, not functional, so it's safe to just stop).
-- `StressBall.tsx`'s physics toy is explicitly out of scope — untouched.
+  Unchanged from the old system — these tokens did not need to move for the
+  material redesign.
+- **Signature visual #1 — the waveform** (`src/components/Waveform.tsx` /
+  `.waveform` styles in `src/index.css`): a hand-built CSS "spectrogram
+  strip resolving into an animated waveform," no libraries. Two variants:
+  `ambient` (idle looping bob, `waveform--ambient`) used once, as Home's hero
+  visual; `reveal` (one-shot scale-in, `waveform--reveal`) is the variant the
+  component itself supports, though the Player's actual generation-complete
+  moment uses a sibling class directly on its real output bars — see next
+  point. Not used anywhere else.
+- **Signature visual #2 — the generation-complete reveal**
+  (`.output-bar--reveal` in `src/index.css`, applied inline in `Player.tsx`):
+  the Player's real output bars (not a decorative stand-in) get a
+  `scaleY(0) → scaleY(1)` reveal animation the moment a generation finishes,
+  keyed by remounting the bar container on `generation.phase === 'done'`.
+- **Ambient motif — "Aqua Drift"** (`src/components/AquaDrift.tsx`, `.aqua-drift*`
+  styles in `src/index.css`): two soft blurred glow blooms
+  (`.aqua-drift__bloom--a/b`, staggered 10s/12s loops) plus three horizontal
+  drifting wave bands (`.aqua-drift__wave--a/b/c`, staggered 12s/15s/17s
+  loops), all sharing the app's single accent hue and a `blur()` treatment so
+  they read as one atmospheric system. `aria-hidden`, purely decorative.
+  **Home hero ONLY** — not present on Player, Library, or Login.
+- `prefers-reduced-motion: reduce` collapses all of the above: the glitch
+  wordmark animation and Aqua Drift's blooms/waves stop entirely (ambient,
+  safe to fully halt); the waveform's ambient bob freezes at its resting
+  height and its reveal/output-bar-reveal animations collapse to a ≤150ms
+  opacity crossfade; Tailwind's `animate-pulse`/`animate-bounce` utilities
+  used elsewhere in the app are capped to a single 150ms iteration.
+- `StressBall.tsx`'s physics toy remains explicitly out of scope — untouched
+  by this redesign. There is no physics-effects toggle anywhere in the nav
+  or elsewhere in the app.
 
 ## Microinteractions stance
+
 - Silent success — no "Saved!" toast when the result is already visible
   on-screen (Library's SAVE button already does this; keep it).
 - Optimistic delete + no confirmation modal for PURGE (already the case;
   keep it — it's the correct pattern, not a gap).
 - Hover tooltip delay 800ms, focus delay 0ms, where tooltips exist.
-- Focus rings appear instantly, never animated in.
+- Focus rings appear instantly, never animated in (`brutal-btn`/
+  `brutal-btn-pink` `:focus-visible` sets a solid `outline` with no
+  transition).
+- Buttons get real `:hover`/`:active`/`:focus-visible` coverage: a
+  `translateY(-1px)` lift + brighter glow on hover, `translateY(0)
+  scale(0.97)` on press (80ms), all transform transitions removed entirely
+  under `prefers-reduced-motion: reduce`.
 
 ## CTA voice
-Unchanged. `brutal-btn` (hard 2px border, offset hard shadow, translate-on-press,
-zero border-radius, uppercase) is already distinctive and not a generic
-pattern — no rounded pills, no gradient fills. Not touching it.
+
+**Aqua-Chrome pill buttons**, replacing the old `brutal-btn` (hard 2px
+border, offset hard shadow, translate-on-press, zero radius, uppercase).
+Both button classes live in `src/index.css`:
+
+- `.brutal-btn` (primary, accent-colored) and `.brutal-btn-pink` (destructive,
+  `--color-danger`-colored) — class names kept from the old system, styling
+  fully replaced.
+- Shape: `border-radius: var(--radius-pill)` (999px), `border: none`.
+- Fill: `linear-gradient(160deg, oklch(from var(--accent) calc(l + 0.14) c h),
+  var(--accent) 65%)` — a lighter tint of the accent fading into the accent
+  itself, giving a chrome/bevel look from one hue rather than a second color.
+- Highlight: `inset 0 1px 0 oklch(from var(--accent) calc(l + 0.35) calc(c *
+  0.3) h / 0.6)` — a specular glass-edge detail — plus an outer
+  `0 4px 10px var(--accent-glow)` soft glow shadow.
+- Hover brightens the glow and lifts `translateY(-1px)`; active presses to
+  `translateY(0) scale(0.97)` over 80ms; `:focus-visible` gets a solid
+  `outline: 2px solid var(--accent)` with `outline-offset: 2px`.
+- No uppercase mandate anymore (the shouty CTA voice was a brutalist-only
+  requirement); no offset hard shadows; no translate-on-press snap.
+- Inputs (`.brutal-input`) get the small `--radius-chip` (9px), a thin
+  `1.5px solid var(--border)`, and an accent glow ring on focus
+  (`box-shadow: 0 0 0 3px var(--accent-glow)`) instead of a hard border swap.
+- Cards/panels (`.brutal-card`) get `--radius-panel` (14px), a `1px solid
+  var(--border)`, and a soft ambient shadow (`0 2px 12px oklch(0% 0 0 /
+  0.06)`) instead of a hard offset shadow.
 
 ## Nav
-**N8 Terminal command** (was: an N1a-shaped nav — wordmark hard-left, inline
-links, sticky, border-bottom — flagged in the audit as genre-blind). Routes
-become CLI flags: `> imagesound --upload --studio --library▮`, active route
-highlighted via `--accent`, blinking caret only here (its one legitimate use
-per Hallmark's own nav catalogue).
+
+`src/components/Navigation.tsx` — a pill-based nav, replacing the old N8
+"Terminal command" CLI-flag nav (`> imagesound --upload --studio --library▮`,
+blinking caret). No `--flag` command-line framing survives; there is no
+physics-effects toggle.
+
+- Wordmark (`imagesound`, glitch effect, Syne, uppercase) — unchanged,
+  hard-left.
+- Three route pills (`nav-term__btn`, `--radius-pill`), one per route
+  (`/` → `upload`, `/player` → `studio`, `/library` → `library`); the active
+  route gets a filled `--accent` background with `--selected-text`, inactive
+  routes are `--text-muted` and brighten to `--accent` on hover.
+- Theme toggle button (sun/moon icon from `lucide-react`), same pill
+  treatment, no label.
+- Auth control, right-aligned: a filled `--accent` "Log in" pill when logged
+  out, or a `--text-muted` username + logout-icon pill when logged in.
+- Sticky (`sticky top-0 z-50`), single `1px solid var(--border)`
+  bottom hairline — no blinking caret, no `>` prompt glyph anywhere.
 
 ## Footer
-**Ft2 Inline single line** — a thin one-line status strip (hairline rule
-above, matching the existing hard-border language), not a marketing footer.
-No column layout.
+
+`src/components/Layout.tsx` — a thin one-line status strip: `1px solid
+var(--border)` top hairline, `11px` uppercase tracking-widest text in
+`--text-muted`: `imagesound · browser-based audio synthesis & converter ·
+system: online`. No column layout, not a marketing footer — same inline
+single-line shape (`Ft2`) the old system used, restyled to the new tokens.
 
 ## Per-page allowances
-- Home MAY use the Tier-A waveform enrichment (it's the signature element).
-- Player MAY reuse the same waveform motif, but only as the completion-reveal
-  motion — not as decoration elsewhere on the page.
-- Library MUST NOT use enrichment — the content (the archive) carries the page.
+
+- Home MAY use the Aqua Drift ambient motif (`<AquaDrift />`, hero section
+  only) and the Waveform component's `ambient` variant (the signature
+  spectrogram→waveform visual, in the hero copy column).
+- Player MAY reuse the generation-complete reveal (`.output-bar--reveal`) on
+  its own real output bars, but gets no ambient background motion — it's a
+  task screen where idle motion would compete with the waveform's own
+  functional state.
+- Library MUST NOT use ambient enrichment — the content (the archive)
+  carries the page; it does use `--accent-tertiary` as its informational
+  accent and `--radius-panel`/`--color-warning`/`--color-danger` for its
+  cards and status states.
+- Login is a clean functional gate — same token system, no ambient motion,
+  `--radius-panel` card with an `--accent`-colored top rule.
 
 ## What pages MUST share
-- The wordmark (IMAGESOUND, Syne, glitch effect — unchanged).
-- The accent hierarchy above (one dominant accent, two dimmed semantic accents).
-- The display + body fonts.
-- The CTA voice (`brutal-btn`/`brutal-card` family, unchanged).
-- The nav and footer (shared shell components, not per-page).
+
+- The wordmark (`imagesound`, Syne, glitch effect — unchanged).
+- The palette above: one dominant accent (`--accent`), two decorative tonal
+  steps (`--accent-secondary`, `--accent-tertiary` — never semantic),
+  `--color-warning` / `--color-danger` for all semantic status.
+- Syne (display) + Geist (UI) as the two loaded families; `--font-mono`
+  reserved for genuinely tabular/labeled content only.
+- The three-step radius scale (`--radius-pill` / `--radius-panel` /
+  `--radius-chip`) — no ad-hoc radius values.
+- The CTA voice (`.brutal-btn` / `.brutal-btn-pink` / `.brutal-input` /
+  `.brutal-card` family — class names kept, Aqua-Chrome styling shipped).
+- The nav and footer (shared shell components in `Navigation.tsx` /
+  `Layout.tsx`, not per-page).
 
 ## What pages MAY differ on
-- Macrostructure emphasis within their family (Home leans hero-first,
-  Player leans panel-first, both still "app page" family).
-- Content layout specifics (Library's tile spans vs. Player's 3-column panels).
+
+- Whether the Aqua Drift ambient motif is present (Home only, per Per-page
+  allowances above).
+- Macrostructure/content layout specifics — Home leans hero-first, Player
+  leans panel-first, Library uses variable-size tiles — unchanged from the
+  existing IA; this redesign is a material/token change, not a structural
+  one.
 
 ## Exports
 
 ### tokens.css
 ```css
-:root {
-  --color-bg:            oklch(9%  0.012 145);
-  --color-bg-card:       oklch(13% 0.014 145);
-  --color-bg-elevated:   oklch(16% 0.016 145);
-  --color-accent:        #39ff14;
-  --color-accent-warn:   oklch(58% 0.15 350);
-  --color-accent-info:   oklch(62% 0.11 200);
-  --color-warning:       oklch(80% 0.15 85);
-  --color-danger:        oklch(58% 0.22 25);
-  --color-ink:           oklch(97% 0.006 145);
-  --color-ink-muted:     oklch(58% 0.01  145);
+:root, body.dark {
+  --bg:               oklch(13% 0.014 230);
+  --bg-card:          oklch(17% 0.016 230);
+  --bg-elevated:      oklch(21% 0.018 230);
+  --input-bg:         oklch(13% 0.014 230);
+  --text-primary:     oklch(94% 0.008 230);
+  --text-muted:       oklch(68% 0.010 230);
+  --text-heading:     oklch(94% 0.008 230);
+  --accent:           oklch(55% 0.19 230);
+  --accent-glow:      oklch(55% 0.19 230 / 0.5);
+  --accent-secondary: oklch(74% 0.09 230);
+  --accent-tertiary:  oklch(60% 0.07 230);
+  --color-warning:    oklch(72% 0.15 70);
+  --color-danger:     oklch(62% 0.20 25);
+  --border:           oklch(30% 0.012 230);
+  --border-muted:     oklch(30% 0.012 230);
+  --selected-bg:      oklch(55% 0.19 230);
+  --selected-text:    oklch(0% 0 230);
 
-  --font-display: "Syne", sans-serif;
-  --font-body:    "Geist Mono", monospace;
+  --radius-pill:  999px;
+  --radius-panel: 14px;
+  --radius-chip:  9px;
+}
+
+body.light {
+  --bg:               oklch(97% 0.008 230);
+  --bg-card:          oklch(94% 0.010 230);
+  --bg-elevated:      oklch(99% 0.006 230);
+  --input-bg:         oklch(99% 0.006 230);
+  --text-primary:     oklch(20% 0.012 230);
+  --text-muted:       oklch(45% 0.010 230);
+  --text-heading:     oklch(20% 0.012 230);
+  --accent:           oklch(58% 0.17 230);
+  --accent-glow:      oklch(58% 0.17 230 / 0.35);
+  --accent-secondary: oklch(42% 0.10 230);
+  --accent-tertiary:  oklch(52% 0.07 230);
+  --color-warning:    oklch(70% 0.16 70);
+  --color-danger:     oklch(58% 0.20 25);
+  --border:           oklch(85% 0.008 230);
+  --border-muted:     oklch(85% 0.008 230);
+  --selected-bg:      oklch(58% 0.17 230);
+  --selected-text:    oklch(0% 0 230);
+}
+
+@theme {
+  --font-mono:    'Geist Mono', monospace;
+  --font-display: 'Syne', sans-serif;
+  --font-ui:      'Geist', sans-serif;
 
   --spacing-3xs: 0.125rem; --spacing-2xs: 0.25rem; --spacing-xs: 0.5rem;
   --spacing-sm:  0.75rem;  --spacing-md:  1rem;    --spacing-lg: 1.5rem;
@@ -166,8 +367,6 @@ No column layout.
   --ease-in:  cubic-bezier(0.7, 0, 0.84, 0);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
   --dur-micro: 120ms; --dur-short: 220ms; --dur-long: 420ms;
-
-  --radius: 0px; /* hard-edged, intentional — not a gap */
 }
 ```
 

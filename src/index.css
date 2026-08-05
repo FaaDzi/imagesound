@@ -1,60 +1,63 @@
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Geist+Mono:wght@100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Geist:wght@100..900&family=Geist+Mono:wght@100..900&display=swap');
 @import "tailwindcss";
 
 :root, body.dark {
-  /* Hallmark · design-system: design.md · designed-as-app
-     Was flat zero-chroma #0a0a0a/#111111 (the banned "flat grey") — now
-     tinted toward the accent hue (~145deg) at low chroma. --accent itself
-     is preserved exactly; --accent-secondary/--accent-tertiary are dimmed
-     from full-brightness decoration into distinct semantic roles (warning,
-     informational) instead of three co-equal accents competing at once. */
-  --bg: oklch(9% 0.012 145);
-  --bg-card: oklch(13% 0.014 145);
-  --bg-elevated: oklch(16% 0.016 145);
-  --input-bg: oklch(9% 0.012 145);
-  --text-primary: oklch(97% 0.006 145);
-  --text-muted: #888888;
-  --text-heading: oklch(97% 0.006 145);
-  --accent: #39ff14;
-  --accent-secondary: oklch(58% 0.15 350);
-  --accent-tertiary: oklch(62% 0.11 200);
-  --color-warning: oklch(80% 0.15 85);
-  --color-danger: oklch(58% 0.22 25);
-  --border: #39ff14;
-  --border-muted: #888888;
-  --selected-bg: #39ff14;
-  --selected-text: #000000;
+  /* Y2K/Aqua-Chrome redesign — see docs/superpowers/specs/2026-08-04-y2k-aqua-redesign-design.md
+     Single anchor hue 230deg (cool blue) for BOTH light and dark mode — dark mode gets more
+     chroma + glow, never a different hue. Elevation reads as lighter, never shadowed. */
+  --bg: oklch(13% 0.014 230);
+  --bg-card: oklch(17% 0.016 230);
+  --bg-elevated: oklch(21% 0.018 230);
+  --input-bg: oklch(13% 0.014 230);
+  --text-primary: oklch(94% 0.008 230);
+  --text-muted: oklch(68% 0.010 230);
+  --text-heading: oklch(94% 0.008 230);
+  --accent: oklch(55% 0.19 230);
+  --accent-glow: oklch(55% 0.19 230 / 0.5);
+  --accent-secondary: oklch(74% 0.09 230);
+  --accent-tertiary: oklch(60% 0.07 230);
+  --color-warning: oklch(72% 0.15 70);
+  --color-danger: oklch(62% 0.20 25);
+  --border: oklch(30% 0.012 230);
+  --border-muted: oklch(30% 0.012 230);
+  --selected-bg: oklch(55% 0.19 230);
+  --selected-text: oklch(0% 0 230);
 
-  --theme-font-ui: 'Geist Mono', monospace;
-  --theme-grid-opacity: 0.2;
+  --theme-font-ui: 'Geist', sans-serif;
+  --theme-grid-opacity: 0; /* the cyberpunk grid overlay is retired — see Task 3 */
+
+  --radius-pill: 999px;
+  --radius-panel: 14px;
+  --radius-chip: 9px;
 }
 
 body.light {
-  --bg: oklch(98% 0.006 145);
-  --bg-card: #f1f5f9;
-  --bg-elevated: #e7edf5;
-  --input-bg: oklch(98% 0.006 145);
-  --text-primary: #0f0f0f;
-  --text-muted: #64748b;
-  --text-heading: #0f0f0f;
-  --accent: #2563eb;
-  --accent-secondary: oklch(62% 0.16 45);
-  --accent-tertiary: oklch(58% 0.12 250);
-  --color-warning: oklch(72% 0.16 75);
-  --color-danger: oklch(55% 0.22 25);
-  --border: #cbd5e1;
-  --border-muted: #cbd5e1;
-  --selected-bg: #2563eb;
-  --selected-text: #ffffff;
+  --bg: oklch(97% 0.008 230);
+  --bg-card: oklch(94% 0.010 230);
+  --bg-elevated: oklch(99% 0.006 230);
+  --input-bg: oklch(99% 0.006 230);
+  --text-primary: oklch(20% 0.012 230);
+  --text-muted: oklch(45% 0.010 230);
+  --text-heading: oklch(20% 0.012 230);
+  --accent: oklch(58% 0.17 230);
+  --accent-glow: oklch(58% 0.17 230 / 0.35);
+  --accent-secondary: oklch(42% 0.10 230);
+  --accent-tertiary: oklch(52% 0.07 230);
+  --color-warning: oklch(70% 0.16 70);
+  --color-danger: oklch(58% 0.20 25);
+  --border: oklch(85% 0.008 230);
+  --border-muted: oklch(85% 0.008 230);
+  --selected-bg: oklch(58% 0.17 230);
+  --selected-text: oklch(0% 0 230);
 
-  --theme-font-ui: 'Geist Mono', monospace;
+  --theme-font-ui: 'Geist', sans-serif;
   --theme-grid-opacity: 0;
 }
 
 @theme {
-  --font-mono: 'Geist Mono', monospace;
+  --font-mono: 'Geist Mono', monospace;  /* kept only for genuinely tabular content, not general UI */
   --font-display: 'Syne', sans-serif;
-  --font-ui: 'Geist Mono', monospace;
+  --font-ui: 'Geist', sans-serif;
 
   --color-neon-green: var(--accent);
   --color-neon-pink: var(--accent-secondary);
@@ -69,7 +72,7 @@ body.light {
   --color-selected-text: var(--selected-text);
 
   /* Hallmark · 4pt named spacing scale — see design.md § Spacing.
-     Generates p-3xs..p-4xl / gap-3xs..gap-4xl etc. utilities. */
+     Generates p-3xs..p-3xl / gap-3xs..gap-3xl etc. utilities. */
   --spacing-3xs: 0.125rem;
   --spacing-2xs: 0.25rem;
   --spacing-xs: 0.5rem;
@@ -92,10 +95,8 @@ body {
   background-color: var(--bg);
   color: var(--accent);
   font-family: var(--font-ui);
-  -webkit-font-smoothing: none;
 }
 
-/* Hard borders and raw aesthetics */
 * {
   --tw-border-opacity: 1;
 }
@@ -163,7 +164,7 @@ body {
   }
 }
 
-/* Brutalist Scrollbar */
+/* Scrollbar */
 ::-webkit-scrollbar {
   width: 14px;
 }
@@ -175,114 +176,109 @@ body {
   background: var(--accent);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--accent-secondary);
+  background: oklch(from var(--accent) calc(l + 0.1) c h);
 }
 
 .brutal-btn {
-  @apply border-2 px-4 py-2 uppercase font-bold transition-none active:translate-y-1 active:translate-x-1;
-  border-color: var(--accent);
-  color: var(--accent);
-  box-shadow: 4px 4px 0 0 var(--accent);
-}
-
-.brutal-btn:hover {
-  background-color: var(--accent);
+  @apply px-5 py-2.5 font-semibold;
+  border: none;
+  border-radius: var(--radius-pill);
   color: var(--selected-text);
-  box-shadow: 2px 2px 0 0 var(--accent);
+  background: linear-gradient(160deg, oklch(from var(--accent) calc(l + 0.14) c h), var(--accent) 65%);
+  box-shadow:
+    inset 0 1px 0 oklch(from var(--accent) calc(l + 0.35) calc(c * 0.3) h / 0.6),
+    0 4px 10px var(--accent-glow);
+  transition: transform var(--dur-micro) var(--ease-out), box-shadow var(--dur-micro) var(--ease-out);
+}
+.brutal-btn:hover {
+  box-shadow:
+    inset 0 1px 0 oklch(from var(--accent) calc(l + 0.35) calc(c * 0.3) h / 0.7),
+    0 6px 14px var(--accent-glow);
+  transform: translateY(-1px);
 }
 .brutal-btn:active {
-  box-shadow: 0px 0px 0 0 var(--accent);
+  transform: translateY(0) scale(0.97);
+  transition-duration: 80ms;
+}
+.brutal-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .brutal-btn:hover, .brutal-btn:active { transform: none; }
 }
 
 .brutal-btn-pink {
-  @apply border-2 px-4 py-2 uppercase font-bold transition-none active:translate-y-1 active:translate-x-1;
-  border-color: var(--accent-secondary);
-  color: var(--accent-secondary);
-  box-shadow: 4px 4px 0 0 var(--accent-secondary);
-}
-
-.brutal-btn-pink:hover {
-  background-color: var(--accent-secondary);
+  @apply px-5 py-2.5 font-semibold;
+  border: none;
+  border-radius: var(--radius-pill);
   color: var(--selected-text);
-  box-shadow: 2px 2px 0 0 var(--accent-secondary);
+  background: linear-gradient(160deg, oklch(from var(--color-danger) calc(l + 0.12) c h), var(--color-danger) 65%);
+  box-shadow:
+    inset 0 1px 0 oklch(from var(--color-danger) calc(l + 0.3) calc(c * 0.3) h / 0.6),
+    0 4px 10px oklch(from var(--color-danger) l c h / 0.35);
+  transition: transform var(--dur-micro) var(--ease-out), box-shadow var(--dur-micro) var(--ease-out);
+}
+.brutal-btn-pink:hover {
+  box-shadow:
+    inset 0 1px 0 oklch(from var(--color-danger) calc(l + 0.3) calc(c * 0.3) h / 0.7),
+    0 6px 14px oklch(from var(--color-danger) l c h / 0.45);
+  transform: translateY(-1px);
 }
 .brutal-btn-pink:active {
-  box-shadow: 0px 0px 0 0 var(--accent-secondary);
+  transform: translateY(0) scale(0.97);
+  transition-duration: 80ms;
+}
+.brutal-btn-pink:focus-visible {
+  outline: 2px solid var(--color-danger);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .brutal-btn-pink:hover, .brutal-btn-pink:active { transform: none; }
+}
+
+.nav-term__btn:focus-visible,
+.lib-icon-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .brutal-input {
-  @apply border-2 p-2 outline-none;
-  border-color: var(--accent);
-  color: var(--accent);
+  @apply p-2.5 outline-none;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-chip);
+  color: var(--text-primary);
   background-color: var(--input-bg);
   box-shadow: none;
+  transition: border-color var(--dur-micro) var(--ease-out), box-shadow var(--dur-micro) var(--ease-out);
 }
 .brutal-input:focus {
-  border-color: var(--accent-secondary);
-  box-shadow: 0 0 10px var(--accent-secondary);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
 .brutal-card {
-  @apply border-2 p-4;
-  border-color: var(--accent);
+  @apply p-4;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
   background-color: var(--bg-card);
-  box-shadow: -4px 4px 0 0 var(--accent-tertiary);
-}
-
-body.light .brutal-card {
-  background-color: var(--bg-card);
-  border-color: var(--border);
-  box-shadow: -4px 4px 0 0 var(--accent-tertiary);
-}
-
-body.light .brutal-btn {
-  border-color: var(--accent);
-  color: var(--accent);
-  box-shadow: 4px 4px 0 0 var(--accent);
-}
-
-body.light .brutal-btn:hover {
-  background-color: var(--accent);
-  color: var(--selected-text);
-}
-
-body.light .brutal-btn-pink {
-  border-color: var(--accent-secondary);
-  color: var(--accent-secondary);
-  box-shadow: 4px 4px 0 0 var(--accent-secondary);
-}
-
-body.light .brutal-btn-pink:hover {
-  background-color: var(--accent-secondary);
-  color: var(--selected-text);
-}
-
-body.light .brutal-input {
-  border-color: var(--border);
-  color: var(--text-primary);
-  background-color: var(--input-bg);
-}
-
-/* ── N8 terminal-command nav caret. The blink is allowed only here — see
-   design.md § Nav / Hallmark's N8 archetype. ── */
-.nav-term__caret {
-  display: inline-block;
-  width: 1ch;
-  animation: nav-caret-blink 1.05s steps(2) infinite;
-}
-@keyframes nav-caret-blink {
-  50% { opacity: 0; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .nav-term__caret { animation: none; }
+  box-shadow: 0 2px 12px oklch(0% 0 0 / 0.06);
 }
 
 /* ── Nav text-buttons — the scaled-down member of the .brutal-btn press
-   family. No border or shadow to collapse, so the press is the same
-   down-and-right nudge at 1px instead of 4px. Instant like .brutal-btn
-   (which is `transition-none`); only the colour is eased. ── */
+   family. No border or shadow to collapse, so the press is the same soft
+   scale-down as every other pressable element in the system, just subtler. ── */
 .nav-term__btn {
-  transition: color var(--dur-micro) var(--ease-out);
+  border-radius: var(--radius-pill);
+  transition: color var(--dur-micro) var(--ease-out), background-color var(--dur-micro) var(--ease-out);
+}
+.nav-term__btn:active {
+  transform: scale(0.97);
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-term__btn:active {
+    transform: none;
+  }
 }
 
 /* ── Library action buttons — border+text swap to solid fill on hover.
@@ -290,6 +286,7 @@ body.light .brutal-input {
    duplicating onMouseEnter/onMouseLeave pairs per button. ── */
 .lib-icon-btn {
   border-color: var(--btn-c);
+  border-radius: var(--radius-chip);
   color: var(--btn-c);
   background-color: transparent;
   transition: background-color var(--dur-micro) var(--ease-out), color var(--dur-micro) var(--ease-out);
@@ -297,14 +294,6 @@ body.light .brutal-input {
 .lib-icon-btn:hover:not(:disabled) {
   background-color: var(--btn-c);
   color: var(--bg);
-}
-.nav-term__btn:active {
-  transform: translate(1px, 1px);
-}
-@media (prefers-reduced-motion: reduce) {
-  .nav-term__btn:active {
-    transform: none;
-  }
 }
 
 /* ── Player output bars — the same GPU-only mechanic as .waveform__bars span
@@ -350,6 +339,59 @@ body.light .brutal-input {
   @keyframes output-bar-reveal-reduced {
     from { opacity: 0; }
     to   { opacity: var(--o); }
+  }
+}
+
+/* ── Aqua Drift — the one sanctioned ambient motif, Home hero only. See
+   docs/superpowers/specs/2026-08-04-y2k-aqua-redesign-design.md § Signature ambient motif. ── */
+.aqua-drift {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+.aqua-drift__bloom {
+  position: absolute;
+  filter: blur(22px);
+  border-radius: 50%;
+  background: oklch(from var(--accent) l calc(c * 0.9) h);
+}
+.aqua-drift__bloom--a {
+  top: 8%; left: 6%;
+  width: 220px; height: 220px;
+  opacity: 0.35;
+  animation: aqua-drift-bloom-a 10s var(--ease-in-out) infinite;
+}
+.aqua-drift__bloom--b {
+  bottom: -4%; right: 8%;
+  width: 180px; height: 180px;
+  border-radius: 40% 60% 55% 45% / 50% 45% 55% 50%;
+  opacity: 0.3;
+  animation: aqua-drift-bloom-b 12s var(--ease-in-out) infinite;
+}
+.aqua-drift__wave {
+  position: absolute;
+  left: -10%;
+  width: 120%;
+  height: 90px;
+  border-radius: 50%;
+  filter: blur(18px);
+  background: oklch(from var(--accent) l calc(c * 0.85) h);
+}
+.aqua-drift__wave--a { top: 20%; opacity: 0.4; animation: aqua-drift-wave-a 12s var(--ease-in-out) infinite; }
+.aqua-drift__wave--b { top: 46%; opacity: 0.32; animation: aqua-drift-wave-b 15s var(--ease-in-out) infinite; }
+.aqua-drift__wave--c { top: 70%; opacity: 0.26; animation: aqua-drift-wave-c 17s var(--ease-in-out) infinite; }
+
+@keyframes aqua-drift-bloom-a { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(14px, -10px); } }
+@keyframes aqua-drift-bloom-b { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(-14px, 10px); } }
+@keyframes aqua-drift-wave-a { 0%, 100% { transform: translateX(-20px); } 50% { transform: translateX(20px); } }
+@keyframes aqua-drift-wave-b { 0%, 100% { transform: translateX(24px); } 50% { transform: translateX(-24px); } }
+@keyframes aqua-drift-wave-c { 0%, 100% { transform: translateX(-14px); } 50% { transform: translateX(14px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .aqua-drift__bloom, .aqua-drift__wave {
+    animation: none;
   }
 }
 

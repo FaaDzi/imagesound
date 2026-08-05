@@ -43,7 +43,7 @@ export function GeneratePanel({
     generation.phase === 'processing';
 
   return (
-    <div data-collider className="border-4 p-4 flex flex-col gap-3" style={{ borderColor: 'var(--accent)', backgroundColor: 'var(--bg)' }}>
+    <div data-collider className="border-4 rounded-[var(--radius-panel)] p-4 flex flex-col gap-3" style={{ borderColor: 'var(--accent)', backgroundColor: 'var(--bg)' }}>
       <div className="flex items-center justify-between">
         <h4 className="font-bold uppercase tracking-widest text-sm" style={{ color: 'var(--accent)' }}>
           [ GENERATE_SONG ]
@@ -136,12 +136,12 @@ export function GeneratePanel({
               </p>
               {discardConfirmPending ? (
                 <div
-                  className="border-2 p-3 flex flex-col gap-2"
-                  style={{ borderColor: 'var(--accent-secondary)', backgroundColor: 'color-mix(in oklch, var(--accent-secondary) 6%, transparent)' }}
+                  className="border-2 rounded-[var(--radius-panel)] p-3 flex flex-col gap-2"
+                  style={{ borderColor: 'var(--color-danger)', backgroundColor: 'color-mix(in oklch, var(--color-danger) 6%, transparent)' }}
                 >
                   <p
                     className="flex items-start gap-2 text-xs font-bold uppercase tracking-widest"
-                    style={{ color: 'var(--accent-secondary)' }}
+                    style={{ color: 'var(--color-danger)' }}
                   >
                     <AlertTriangle size={14} className="shrink-0 mt-[1px]" aria-hidden="true" />
                     <span>Discard this audio? This can't be undone.</span>
