@@ -57,7 +57,7 @@ export function Login() {
 
         <div
           data-collider
-          className="border-4 p-8 md:p-10 flex flex-col gap-6"
+          className="border-4 rounded-[var(--radius-panel)] p-8 md:p-10 flex flex-col gap-6"
           style={{ borderColor: 'var(--accent)', backgroundColor: 'transparent' }}
         >
           <form onSubmit={handleSubmit} className="flex flex-col gap-5" noValidate>
@@ -103,11 +103,11 @@ export function Login() {
             {error && (
               <div
                 role="alert"
-                className="flex items-start gap-3 border-2 p-4"
+                className="flex items-start gap-3 border-2 rounded-[var(--radius-panel)] p-4"
                 style={{
-                  borderColor: 'var(--accent-secondary)',
-                  color: 'var(--accent-secondary)',
-                  backgroundColor: 'color-mix(in oklch, var(--accent-secondary) 8%, transparent)',
+                  borderColor: 'var(--color-danger)',
+                  color: 'var(--color-danger)',
+                  backgroundColor: 'color-mix(in oklch, var(--color-danger) 8%, transparent)',
                 }}
               >
                 <AlertCircle size={20} className="shrink-0 mt-0.5" />
