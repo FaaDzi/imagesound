@@ -53,6 +53,43 @@ def _score_song(wav_path: Path, prompt: str | None) -> tuple[float | None, str |
 
 _queue: queue.Queue = queue.Queue()
 
+_worker_start_time = time.monotonic()
+
+
+def _log_vram_state(job_id: str, label: str) -> None:
+    """Log VRAM usage + CUDA allocator fragmentation signals, and process
+    uptime, around each generation.
+
+    Added to chase a reported "medium model only freezes in the afternoon/
+    evening, never in the morning, even though the app was never restarted"
+    pattern. That symptom is consistent with CUDA allocator fragmentation
+    building up over a long-lived process (many hours of alloc/free cycles
+    since this morning's start) even though jobs.py force-unloads the model
+    and calls empty_cache() after every job -- empty_cache() frees cached
+    blocks back to the driver but does not guarantee zero fragmentation.
+    num_alloc_retries/num_ooms are the allocator's own signal for this: near
+    zero all day = fragmentation isn't the cause; climbing over the day,
+    worse by evening = it is. Comparing this log across a morning run and an
+    evening run (same day, same process, no restart) is the actual test.
+    """
+    try:
+        import torch as _torch
+        if not _torch.cuda.is_available():
+            return
+        alloc = _torch.cuda.memory_allocated(0) / 1024 ** 3
+        resv = _torch.cuda.memory_reserved(0) / 1024 ** 3
+        stats = _torch.cuda.memory_stats(0)
+        retries = stats.get("num_alloc_retries", 0)
+        ooms = stats.get("num_ooms", 0)
+        uptime_hours = (time.monotonic() - _worker_start_time) / 3600
+        log.info(
+            "[worker] job %s %s VRAM: alloc=%.2fGB reserved=%.2fGB "
+            "alloc_retries=%d ooms=%d process_uptime=%.1fh",
+            job_id, label, alloc, resv, retries, ooms, uptime_hours,
+        )
+    except Exception:
+        log.exception("[worker] job %s %s VRAM logging failed", job_id, label)
+
 
 @dataclass
 class Job:
@@ -79,6 +116,40 @@ def enqueue(job: Job) -> None:
 def get_queue_depth() -> int:
     """Return the number of jobs currently waiting in the queue (not counting the one in flight)."""
     return _queue.qsize()
+
+
+# Tracks whether the worker is actively processing a job right now. Separate
+# from _queue.qsize(), which only counts jobs still WAITING -- it excludes
+# the one job the worker has already dequeued and is running, so qsize()
+# alone can read 0 while a generation is still in flight.
+#
+# This backs a simple "one generation at a time" rule for /generate: with
+# only a single shared login for the whole app (see auth), two people using
+# a shared tunnel link at the same time previously had no coordination at
+# all -- both requests would just enqueue, and if they targeted the same
+# unsaved image, the second one to finish would silently overwrite the
+# first's result in the database. Rejecting the second request outright
+# (see routers/generate.py) is simpler and more honest than letting it
+# queue silently.
+_active_lock = threading.Lock()
+_active = False
+
+
+def is_active() -> bool:
+    """True if the worker is currently processing a job (not just queued)."""
+    with _active_lock:
+        return _active
+
+
+def _set_active(value: bool) -> None:
+    global _active
+    with _active_lock:
+        _active = value
+
+
+def has_work_in_progress() -> bool:
+    """True if a generation is running OR waiting behind one that is."""
+    return is_active() or get_queue_depth() > 0
 
 
 # In-memory generation-progress store — no DB writes, since audiocraft's
@@ -132,6 +203,7 @@ def _run_worker() -> None:
         log.info("[worker] Picked up job %s (%s, %ds) — queue depth now %d",
                  job.file_id, job.input_type, job.duration, _queue.qsize())
         conn = get_connection()
+        _set_active(True)
 
         try:
             # --- Pre-start cancellation check ---
@@ -162,6 +234,7 @@ def _run_worker() -> None:
                 continue  # finally executes (conn.close + task_done), then next job
 
             manager = get_model_manager()
+            _log_vram_state(job.file_id, "pre-gen")
 
             # If model isn't resident, show loading_model so the frontend can
             # display "warming up" instead of looking frozen.
@@ -233,15 +306,7 @@ def _run_worker() -> None:
                 prompt_used = job.source
 
             log.info("[worker] job %s — generation returned: wav=%s", job.file_id, wav_path.name if wav_path else None)
-            try:
-                import torch as _torch
-                if _torch.cuda.is_available():
-                    _alloc = _torch.cuda.memory_allocated(0) / 1024 ** 3
-                    _resv  = _torch.cuda.memory_reserved(0)  / 1024 ** 3
-                    log.info("[worker] job %s post-gen VRAM: alloc=%.2f GB, reserved=%.2f GB",
-                             job.file_id, _alloc, _resv)
-            except Exception:
-                pass
+            _log_vram_state(job.file_id, "post-gen")
 
             # --- Post-generation cancellation check ---
             # /cancel may have arrived while MusicGen was running (can't interrupt it).
@@ -285,6 +350,7 @@ def _run_worker() -> None:
             except Exception:
                 log.exception("[jobs] Could not mark job %s failed in DB", job.file_id)
         finally:
+            _set_active(False)
             clear_progress(job.file_id)
             conn.close()
             _queue.task_done()

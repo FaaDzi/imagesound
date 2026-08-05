@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 
 from app.config import DIR_CONVERTED, DIR_ORIGINALS, MAX_DURATION_SECONDS, RATE_LIMIT_GENERATE, SMALL_MODEL_AVAILABLE, UNSAVED_EXPIRY_SECONDS
 from app.database import get_connection
-from app.jobs import Job, enqueue
+from app.jobs import Job, enqueue, has_work_in_progress
 from app.limiter import limiter
 
 router = APIRouter()
@@ -74,6 +74,17 @@ def _base_job_kwargs(req: GenerateRequest) -> dict:
 @router.post("/generate", status_code=202)
 @limiter.limit(RATE_LIMIT_GENERATE)
 def generate(request: Request, req: GenerateRequest):
+    # Only one shared login exists for the whole app (see auth) -- if this is
+    # reached via a shared tunnel link, "someone else" here really can mean a
+    # different person, not just another tab. Reject outright rather than
+    # silently queueing: queueing let two requests targeting the same unsaved
+    # image silently overwrite each other's result in the database.
+    if has_work_in_progress():
+        raise HTTPException(
+            status_code=409,
+            detail="Someone is already generating a song right now -- please wait for it to "
+                   "finish, then try again.",
+        )
     if req.melody_source_id is None and req.model == "small" and not SMALL_MODEL_AVAILABLE:
         raise HTTPException(
             status_code=422,

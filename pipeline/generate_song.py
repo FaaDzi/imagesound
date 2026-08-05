@@ -30,7 +30,11 @@ from google import genai
 from google.genai import types
 from PIL import Image
 
-_GEMINI_MODEL = "gemini-2.5-flash"
+# "-latest" alias (not a dated snapshot like "gemini-2.5-flash") so this
+# doesn't silently break again the next time Google retires an old pin --
+# that's exactly what happened here (2.5-flash returned 404 "no longer
+# available to new users").
+_GEMINI_MODEL = "gemini-flash-latest"
 
 log = logging.getLogger(__name__)
 
@@ -68,6 +72,10 @@ Rules:
 - Do NOT describe what you see visually (no "frames show", "the GIF depicts", etc.).
 - Choose 2-4 well-defined instruments only; name one clear focal/lead element.
 - Keep adjectives minimal and purposeful — one vivid descriptor beats three vague ones.
+- Convey intensity through fullness/warmth/density (e.g. "fuller", "richer", "driving"),
+  never through pitch-height. Avoid "soaring", "piercing", "rising", "climbing",
+  "swelling", "screaming", or "shimmering highs" — this model renders that language
+  as a harsh, mechanical-sounding pitch sweep rather than real musical lift.
 """
 
 _MUSIC_DIRECTION_INSTRUCTION = """\
@@ -84,9 +92,13 @@ Rules:
 - Choose 2-4 well-defined instruments only. Too many simultaneous layers muddy the generated audio — favor clarity over grandeur.
 - Name one clear focal element (the lead instrument or melody line) that carries the piece. The result must have a defined center, not a flat wash of equal layers.
 - Keep adjectives minimal and purposeful — one vivid descriptor beats three vague ones.
+- Convey intensity through fullness/warmth/density (e.g. "fuller", "richer", "driving"),
+  never through pitch-height. Avoid "soaring", "piercing", "rising", "climbing",
+  "swelling", "screaming", or "shimmering highs" — this model renders that language
+  as a harsh, mechanical-sounding pitch sweep rather than real musical lift.
 
 Examples of good output (few instruments, one named lead, concise):
-  "Solo cello lead over sparse low strings, slow and brooding, rising tension."
+  "Solo cello lead over sparse low strings, slow and brooding, quiet weight."
   "Fingerpicked acoustic guitar melody, light tambourine, upbeat indie folk, warm and bright."
   "Lead synth pad melody, subtle bass drone, slow reverb, melancholic and spacious."
 
@@ -248,6 +260,29 @@ _CHUNK_SEC              = 30   # MusicGen single-pass ceiling (seconds)
 _CONTINUATION_PROMPT_SEC = 6   # tail audio fed as continuation context per chunk
 _CROSSFADE_MS           = 100  # crossfade length at chunk seams (milliseconds)
 
+# Sampling/guidance quality tuning. These only change *which* tokens get
+# sampled during the same forward passes MusicGen already runs -- no extra
+# VRAM, no extra compute, no extra model to load. cfg_coef raised from the
+# audiocraft default (3.0) and temperature lowered from the default (1.0)
+# is a documented combination for tighter prompt adherence and fewer
+# incoherent/artifact-prone passages, at the cost of slightly less variety
+# between generations (acceptable here since output is steered by a
+# specific per-image prompt anyway, not meant to be random).
+_CFG_COEF     = 4.0
+_TEMPERATURE  = 0.8
+
+
+def _apply_generation_params(musicgen, duration: float) -> None:
+    """set_generation_params() replaces the ENTIRE params dict (including
+    cfg_coef/temperature) on every call, so every call site must re-apply
+    the tuned values alongside duration -- otherwise they'd silently reset
+    to audiocraft's defaults on chunk 2+."""
+    musicgen.set_generation_params(
+        duration=duration,
+        cfg_coef=_CFG_COEF,
+        temperature=_TEMPERATURE,
+    )
+
 
 def _wrap_progress_callback(on_progress, cumulative: float, weight: float, expected_new_frames: int):
     """Build a (generated, total) -> None callback for musicgen.set_custom_progress_callback
@@ -266,6 +301,25 @@ def _wrap_progress_callback(on_progress, cumulative: float, weight: float, expec
         local_frac = max(0.0, min(1.0, generated_tokens / expected_new_frames))
         on_progress(max(0.0, min(1.0, cumulative + local_frac * weight)))
     return _cb
+
+
+_SILENCE_RMS_DBFS = -45.0  # below this, a continuation tail is treated as "gone silent"
+                            # rather than real quiet music. Starting point, not measured
+                            # against real output -- if real silent passages get wrongly
+                            # treated as dead (audible glitch/restart on quiet outros),
+                            # lower this (more negative); if silence still isn't caught,
+                            # raise it.
+
+
+def _tail_rms_dbfs(tail: "torch.Tensor") -> float:
+    """RMS level of an audio tensor in dBFS. -inf (never near-zero float) is
+    clamped away so callers can compare freely."""
+    import torch
+    rms = torch.sqrt(torch.mean(tail.to(torch.float32) ** 2)).item()
+    if rms <= 1e-9:
+        return -120.0
+    import math
+    return 20 * math.log10(rms)
 
 
 def _crossfade_join(a: "torch.Tensor", b: "torch.Tensor", fade_samples: int) -> "torch.Tensor":
@@ -290,6 +344,7 @@ def _generate_chunked(
     melody_wav: "torch.Tensor | None" = None,
     melody_sr: "int | None" = None,
     on_progress=None,
+    filter_mode: str = "filtered",
 ) -> "torch.Tensor":
     """
     Generate audio longer than _CHUNK_SEC by chaining MusicGen calls.
@@ -321,6 +376,22 @@ def _generate_chunked(
     """
     import torch
 
+    def _filter_chunk(audio: "torch.Tensor", chunk_idx: int) -> "torch.Tensor":
+        """Apply the artifact-reduction filter to ONE chunk's own audio, not
+        the final stitched track. The adaptive noise gate calibrates its
+        profile from whatever audio it's given -- running it once on the
+        whole multi-minute track lets later chunks (which have drifted
+        furthest from the track's average character via the continuation
+        chain) get miscalibrated treatment. Filtering each chunk against its
+        own local statistics avoids that."""
+        if filter_mode != "filtered":
+            return audio
+        from pipeline.postfilter import apply_postfilter
+        t_f = time.perf_counter()
+        filtered = apply_postfilter(audio, sample_rate)
+        print(f"  [chunked] Chunk {chunk_idx} postfilter done in {time.perf_counter()-t_f:.2f}s", flush=True)
+        return filtered
+
     def _chunk_prompt(idx: int) -> str:
         """1-indexed. Clamps to last entry if list is shorter than chunk count."""
         return prompts[min(idx - 1, len(prompts) - 1)]
@@ -351,7 +422,7 @@ def _generate_chunked(
     # --- Chunk 1: normal text-conditioned generation ---
     p1 = _chunk_prompt(1)
     print(f"  [chunked] Chunk 1 [{_W()}]: set_generation_params({_CHUNK_SEC}s)...", flush=True)
-    musicgen.set_generation_params(duration=_CHUNK_SEC)
+    _apply_generation_params(musicgen, _CHUNK_SEC)
     _chunk1_kind = "generate_with_chroma" if melody_wav is not None else "generate"
     print(f"  [chunked] Chunk 1 [{_W()}]: {_chunk1_kind}() STARTING...", flush=True)
     print(f"  [chunked]   GPU before generate: {_gpu_stats()}", flush=True)
@@ -375,7 +446,7 @@ def _generate_chunked(
         raw = musicgen.generate([p1], progress=(on_progress is not None))   # [1, C, T]
     t_c1_elapsed = time.perf_counter() - t_c1
     cumulative = weight_1
-    chunks = [raw[0].cpu()]            # [C, T]  — move off GPU before freeing
+    chunks = [_filter_chunk(raw[0].cpu(), 1)]            # [C, T]  — move off GPU before freeing
     del raw
     accumulated_samples = chunks[0].shape[-1]
     print(f"  [chunked] Chunk 1 [{_W()}]: generate() DONE in {t_c1_elapsed:.1f}s "
@@ -423,7 +494,7 @@ def _generate_chunked(
             this_sec = min(remaining_sec, _CHUNK_SEC)
             print(f"  [chunked] Chunk {chunk_idx} [{_W()}]: melody segment "
                   f"{melody_seg.shape[-1]/melody_sr:.1f}s, set_generation_params({this_sec:.1f}s)...", flush=True)
-            musicgen.set_generation_params(duration=this_sec)
+            _apply_generation_params(musicgen, this_sec)
 
             weight_i = this_sec / duration
             if on_progress is not None:
@@ -441,7 +512,7 @@ def _generate_chunked(
             print(f"  [chunked] Chunk {chunk_idx} [{_W()}]: generate_with_chroma DONE in {t_cx_elapsed:.1f}s "
                   f"-- raw shape={raw_seg.shape}", flush=True)
 
-            new_part = raw_seg[0].cpu()
+            new_part = _filter_chunk(raw_seg[0].cpu(), chunk_idx)
             del raw_seg
 
             if torch.cuda.is_available():
@@ -457,45 +528,85 @@ def _generate_chunked(
             t_prep = time.perf_counter()
             tail = chunks[-1][:, -prompt_tail_samples:].unsqueeze(0)  # [1, C, tail] on CPU
             t_prep_elapsed = time.perf_counter() - t_prep
+            tail_dbfs = _tail_rms_dbfs(tail)
 
             print(f"  [chunked] Chunk {chunk_idx} [{_W()}]: STEP 1 — prep done in {t_prep_elapsed*1000:.0f}ms "
-                  f"(need {remaining_sec:.1f}s more)", flush=True)
+                  f"(need {remaining_sec:.1f}s more), tail RMS={tail_dbfs:.1f} dBFS", flush=True)
             print(f"  [chunked]   tail: device={tail.device}, shape={tail.shape}, sample_rate={sample_rate}", flush=True)
             print(f"  [chunked]   GPU before set_generation_params: {_gpu_stats()}", flush=True)
 
-            print(f"  [chunked] Chunk {chunk_idx} [{_W()}]: STEP 2 — set_generation_params({this_sec:.1f}s)...", flush=True)
-            musicgen.set_generation_params(duration=this_sec)
+            if tail_dbfs < _SILENCE_RMS_DBFS:
+                # The previous chunk trailed into near-silence. Conditioning
+                # generate_continuation() on a near-silent tail biases the model
+                # toward extrapolating MORE silence (it's audio-conditioned, and
+                # a quiet acoustic prompt is strong evidence to stay quiet) --
+                # weaker models recover from this less reliably than stronger
+                # ones. Drop the dead tail and start this chunk fresh from the
+                # text prompt alone (same call shape as chunk 1), which breaks
+                # the silence-feedback loop instead of extending it.
+                this_sec = min(remaining_sec, _CHUNK_SEC)
+                print(f"  [chunked] Chunk {chunk_idx} [{_W()}]: tail below silence threshold "
+                      f"({_SILENCE_RMS_DBFS:.1f} dBFS) — discarding continuation, "
+                      f"generating fresh from text prompt instead", flush=True)
+                _apply_generation_params(musicgen, this_sec)
 
-            weight_i = (this_sec - _CONTINUATION_PROMPT_SEC) / duration
-            if on_progress is not None:
-                expected_new_frames_i = int(max(this_sec - _CONTINUATION_PROMPT_SEC, 0) * musicgen.frame_rate)
-                musicgen.set_custom_progress_callback(
-                    _wrap_progress_callback(on_progress, cumulative, weight_i, expected_new_frames_i)
-                )
+                weight_i = this_sec / duration
+                if on_progress is not None:
+                    expected_new_frames_i = int(this_sec * musicgen.frame_rate)
+                    musicgen.set_custom_progress_callback(
+                        _wrap_progress_callback(on_progress, cumulative, weight_i, expected_new_frames_i)
+                    )
 
-            print(f"  [chunked] Chunk {chunk_idx} [{_W()}]: STEP 3 — generate_continuation({this_sec:.1f}s) STARTING...", flush=True)
-            print(f"  [chunked]   GPU before generate_continuation: {_gpu_stats()}", flush=True)
-            t_cx = time.perf_counter()
-            cont       = musicgen.generate_continuation(tail, sample_rate, descriptions=[p], progress=(on_progress is not None))
-            t_cx_elapsed = time.perf_counter() - t_cx
-            cumulative += weight_i
-            print(f"  [chunked] Chunk {chunk_idx} [{_W()}]: STEP 3 — generate_continuation RETURNED in {t_cx_elapsed:.1f}s "
-                  f"-- raw shape={cont.shape}", flush=True)
-            print(f"  [chunked]   GPU after generate_continuation: {_gpu_stats()}", flush=True)
+                t_cx = time.perf_counter()
+                raw_seg = musicgen.generate([p], progress=(on_progress is not None))
+                t_cx_elapsed = time.perf_counter() - t_cx
+                cumulative += weight_i
+                print(f"  [chunked] Chunk {chunk_idx} [{_W()}]: silence-recovery generate() DONE in "
+                      f"{t_cx_elapsed:.1f}s -- raw shape={raw_seg.shape}", flush=True)
 
-            cont_audio = cont[0].cpu()
-            del cont
+                new_part = _filter_chunk(raw_seg[0].cpu(), chunk_idx)
+                del raw_seg
 
-            # Release chunk N's GPU cache before the next iteration starts.
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-                print(f"  [chunked]   GPU after del cont + empty_cache: {_gpu_stats()}", flush=True)
-
-            # Strip the prompt audio that was prepended to the output.
-            if cont_audio.shape[-1] > prompt_tail_samples:
-                new_part = cont_audio[:, prompt_tail_samples:]
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                    print(f"  [chunked]   GPU after del + empty_cache: {_gpu_stats()}", flush=True)
             else:
-                new_part = cont_audio
+                print(f"  [chunked] Chunk {chunk_idx} [{_W()}]: STEP 2 — set_generation_params({this_sec:.1f}s)...", flush=True)
+                _apply_generation_params(musicgen, this_sec)
+
+                weight_i = (this_sec - _CONTINUATION_PROMPT_SEC) / duration
+                if on_progress is not None:
+                    expected_new_frames_i = int(max(this_sec - _CONTINUATION_PROMPT_SEC, 0) * musicgen.frame_rate)
+                    musicgen.set_custom_progress_callback(
+                        _wrap_progress_callback(on_progress, cumulative, weight_i, expected_new_frames_i)
+                    )
+
+                print(f"  [chunked] Chunk {chunk_idx} [{_W()}]: STEP 3 — generate_continuation({this_sec:.1f}s) STARTING...", flush=True)
+                print(f"  [chunked]   GPU before generate_continuation: {_gpu_stats()}", flush=True)
+                t_cx = time.perf_counter()
+                cont       = musicgen.generate_continuation(tail, sample_rate, descriptions=[p], progress=(on_progress is not None))
+                t_cx_elapsed = time.perf_counter() - t_cx
+                cumulative += weight_i
+                print(f"  [chunked] Chunk {chunk_idx} [{_W()}]: STEP 3 — generate_continuation RETURNED in {t_cx_elapsed:.1f}s "
+                      f"-- raw shape={cont.shape}", flush=True)
+                print(f"  [chunked]   GPU after generate_continuation: {_gpu_stats()}", flush=True)
+
+                cont_audio = cont[0].cpu()
+                del cont
+
+                # Release chunk N's GPU cache before the next iteration starts.
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                    print(f"  [chunked]   GPU after del cont + empty_cache: {_gpu_stats()}", flush=True)
+
+                # Strip the prompt audio that was prepended to the output, then
+                # filter only the newly-generated portion -- the stripped-off
+                # prompt audio is the previous chunk's tail, already filtered.
+                if cont_audio.shape[-1] > prompt_tail_samples:
+                    new_part = cont_audio[:, prompt_tail_samples:]
+                else:
+                    new_part = cont_audio
+                new_part = _filter_chunk(new_part, chunk_idx)
 
         # Trim to exactly what's needed on the last chunk (model may overshoot
         # by a few samples due to integer rounding).
@@ -559,6 +670,39 @@ def _resolve_arc(
 
 # ── Private steps ─────────────────────────────────────────────────────────────
 
+# Gemini's free/shared model tier intermittently returns 503 "model is
+# overloaded" under load -- a transient condition, not a broken key or a
+# dead model. Without a retry, every blip surfaces as a hard failure to the
+# user even though the same request usually succeeds seconds later.
+_GEMINI_MAX_ATTEMPTS = 4
+_GEMINI_RETRY_BACKOFF_SEC = 2.0  # doubles each attempt: 2s, 4s, 8s
+
+
+def _gemini_generate_content(model: str, contents: list) -> "types.GenerateContentResponse":
+    """generate_content() with retry-with-backoff on transient server-side
+    errors (503 overloaded, 429 rate-limited). Client errors (bad request,
+    invalid key, model not found, etc.) fail immediately -- retrying those
+    would just waste time on something a retry can never fix."""
+    from google.genai import errors as genai_errors
+
+    last_err: Exception | None = None
+    for attempt in range(1, _GEMINI_MAX_ATTEMPTS + 1):
+        try:
+            return _get_gemini_client().models.generate_content(model=model, contents=contents)
+        except genai_errors.ServerError as e:
+            last_err = e
+        except genai_errors.ClientError as e:
+            if getattr(e, "code", None) != 429:
+                raise
+            last_err = e
+        if attempt < _GEMINI_MAX_ATTEMPTS:
+            wait = _GEMINI_RETRY_BACKOFF_SEC * (2 ** (attempt - 1))
+            print(f"  [gemini] Attempt {attempt}/{_GEMINI_MAX_ATTEMPTS} failed ({last_err}) "
+                  f"-- retrying in {wait:.0f}s...", flush=True)
+            time.sleep(wait)
+    raise last_err
+
+
 def _gif_to_prompt(image_path: Path) -> tuple[str, float]:
     """GIF path: sample up to 3 frames (first/middle/last), ONE Gemini call. Returns (prompt, elapsed)."""
     img = Image.open(image_path)
@@ -583,10 +727,7 @@ def _gif_to_prompt(image_path: Path) -> tuple[str, float]:
 
     log.info("[gif] Sending %d frame(s) to Gemini in a single call (n_frames=%d).", len(indices), n)
     t0 = time.perf_counter()
-    response = _get_gemini_client().models.generate_content(
-        model=_GEMINI_MODEL,
-        contents=contents,
-    )
+    response = _gemini_generate_content(_GEMINI_MODEL, contents)
     return response.text.strip(), time.perf_counter() - t0
 
 
@@ -604,13 +745,10 @@ def _image_to_prompt(image_path: Path) -> tuple[str, float]:
     mime = {"JPEG": "image/jpeg", "PNG": "image/png", "WEBP": "image/webp"}[fmt]
 
     t0 = time.perf_counter()
-    response = _get_gemini_client().models.generate_content(
-        model=_GEMINI_MODEL,
-        contents=[
-            types.Part.from_bytes(data=buf.getvalue(), mime_type=mime),
-            _MUSIC_DIRECTION_INSTRUCTION,
-        ],
-    )
+    response = _gemini_generate_content(_GEMINI_MODEL, [
+        types.Part.from_bytes(data=buf.getvalue(), mime_type=mime),
+        _MUSIC_DIRECTION_INSTRUCTION,
+    ])
     return response.text.strip(), time.perf_counter() - t0
 
 
@@ -679,11 +817,11 @@ def _prompt_to_wav(
                 )
             if melody_wav is not None:
                 print(f"  [gen] Short path: generate_with_chroma({duration}s) starting…", flush=True)
-                musicgen.set_generation_params(duration=duration)
+                _apply_generation_params(musicgen, duration)
                 wavs = musicgen.generate_with_chroma([prompt_list[0]], melody_wav, melody_sr, progress=(on_progress is not None))
             else:
                 print(f"  [gen] Short path: generate({duration}s) starting…", flush=True)
-                musicgen.set_generation_params(duration=duration)
+                _apply_generation_params(musicgen, duration)
                 wavs = musicgen.generate([prompt_list[0]], progress=(on_progress is not None))
             final_audio = wavs[0].cpu()
             del wavs
@@ -705,11 +843,17 @@ def _prompt_to_wav(
                 musicgen, prompt_list, duration, sr,
                 melody_wav=melody_wav, melody_sr=melody_sr,
                 on_progress=on_progress,
+                filter_mode=filter_mode,
             )
 
         musicgen_time = time.perf_counter() - t0
 
-        if filter_mode == "filtered":
+        # Chunked generation already filters each chunk on its own local
+        # statistics inside _generate_chunked (see _filter_chunk there) --
+        # applying it again here to the stitched track would be redundant.
+        # The short (single-chunk) path never went through that, so it's
+        # filtered here instead.
+        if filter_mode == "filtered" and duration <= _CHUNK_SEC:
             print(f"  [gen] Applying postfilter (artifact reduction)…", flush=True)
             t_filter = time.perf_counter()
             from pipeline.postfilter import apply_postfilter

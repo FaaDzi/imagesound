@@ -97,7 +97,14 @@ export default defineConfig(() => {
           '**/.hallmark/**',
           'package-lock.json',
           '**/.fad_eval/**',
-          '**/dist/**',
+          // Anchored to the project's OWN top-level dist/ (build output) --
+          // NOT '**/dist/**', which also matches node_modules/vite/dist/**
+          // and every other dependency's own dist folder, silently blocking
+          // Vite from serving its own client runtime (node_modules/vite/dist/
+          // client/client.mjs, i.e. the /@vite/client script every page
+          // loads) and breaking the app with a blank white screen -- this
+          // was a real bug, not hypothetical, caught by an actual blank page.
+          `${path.resolve(__dirname, 'dist')}/**`,
         ],
       },
     },

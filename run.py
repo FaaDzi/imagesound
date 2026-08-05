@@ -4,6 +4,7 @@
 # starting a second one (a start/stop switch). For local testing only.
 import json
 import re
+import shutil
 import subprocess
 import sys
 import os
@@ -14,6 +15,33 @@ import urllib.request
 import urllib.error
 import http.client
 from pathlib import Path
+
+# Windows-only convenience relaunch: python-dotenv and the backend's other
+# dependencies only live in the project's own .venv. If this script gets
+# invoked with a different Python -- easy to do by accident, since the
+# header above just says "run python run.py" -- .env values like
+# SESSION_SECRET_KEY become invisible to this process, which then makes
+# --tunnel's secret check further down refuse to start even when a real
+# secret IS set in .env, just not visible here. Re-exec under the venv's
+# python transparently instead of leaving that as a recurring footgun.
+# No-op (falls through) if the venv doesn't exist yet (e.g. a fresh clone
+# before dependencies are installed) or if we're already running under it.
+_VENV_PYTHON_PATH = Path(__file__).resolve().parent / ".venv" / "Scripts" / "python.exe"
+if (
+    sys.platform == "win32"
+    and _VENV_PYTHON_PATH.exists()
+    and Path(sys.executable).resolve() != _VENV_PYTHON_PATH.resolve()
+):
+    os.execv(str(_VENV_PYTHON_PATH), [str(_VENV_PYTHON_PATH), str(Path(__file__).resolve())] + sys.argv[1:])
+
+# Force line-buffered stdout. Without this, Python block-buffers its own
+# print() output whenever stdout isn't a real interactive console (common
+# in VS Code's integrated terminal / task runners on Windows) -- so every
+# "[launcher] ..." line (including the tunnel URL) sits in a buffer and
+# only appears all at once, out of order, whenever the buffer happens to
+# flush. reconfigure() only affects THIS process's own prints; the
+# backend/frontend subprocesses' output is unaffected either way.
+sys.stdout.reconfigure(line_buffering=True)
 
 # Load the project's .env file (if present) so SESSION_SECRET_KEY and other
 # values set there are visible via os.environ -- mirrors backend/app/config.py,
@@ -53,7 +81,33 @@ BACKEND_CMD = [
 ]
 FRONTEND_CMD = ["npm", "run", "dev"]
 FRONTEND_DIR = "."   # set to your frontend folder if it's not the project root
-TUNNEL_CMD = ["cloudflared", "tunnel", "--url", "http://127.0.0.1:3000"]
+
+
+def _resolve_cloudflared() -> str:
+    """Find cloudflared.exe even when it's not on THIS process's PATH.
+
+    On Windows, installing cloudflared (e.g. via winget) updates the
+    machine/user PATH in the registry, but any terminal/process already
+    running keeps the PATH it started with -- it won't see the new entry
+    until a fresh process is spawned. That made 'python run.py --tunnel'
+    fail with WinError 2 even right after a successful install, in a
+    terminal that was simply opened before the install ran. Falling back
+    to cloudflared's well-known winget install location sidesteps that
+    stale-PATH trap instead of requiring the user to reopen their terminal.
+    """
+    found = shutil.which("cloudflared")
+    if found:
+        return found
+    for candidate in (
+        r"C:\Program Files (x86)\cloudflared\cloudflared.exe",
+        r"C:\Program Files\cloudflared\cloudflared.exe",
+    ):
+        if os.path.isfile(candidate):
+            return candidate
+    return "cloudflared"  # not found anywhere; let the OSError path report it
+
+
+TUNNEL_CMD = [_resolve_cloudflared(), "tunnel", "--url", "http://127.0.0.1:3000"]
 # -------------------------------------------------------------
 
 _PIDFILE = Path(__file__).resolve().parent / ".run.pid"
@@ -110,42 +164,76 @@ def start(name, cmd, cwd=None, env=None):
     return p
 
 
-_TUNNEL_URL_RE = re.compile(r'https://[a-zA-Z0-9-]+\.trycloudflare\.com')
+# Excludes the literal "api" subdomain: cloudflared's real assigned quick-
+# tunnel hostnames are always multi-word (e.g. "immediate-harbor-tampa"),
+# never a single bare word -- so a match on "api.trycloudflare.com" is
+# never a real tunnel address (seen once during heavy back-to-back testing,
+# likely an artifact of hitting the free anonymous service's rate limit).
+_TUNNEL_URL_RE = re.compile(r'https://(?!api\.)[a-zA-Z0-9-]+\.trycloudflare\.com')
 _tunnel_url = {"value": None}
-_tunnel_url_found = threading.Event()
 
 
-def _read_tunnel_output(p: subprocess.Popen) -> None:
+def _read_tunnel_output(p: subprocess.Popen, url_holder: dict, url_found: threading.Event) -> None:
     """Background reader thread: keeps draining cloudflared's combined
     stdout/stderr (so the pipe never fills and blocks the subprocess) and
     captures the quick-tunnel URL the first time it appears in the output.
+    Takes its own url_holder/url_found per attempt (rather than shared
+    globals) so a retry in start_tunnel() gets a clean slate instead of
+    reacting to a stale match from a previous, abandoned attempt.
     """
     for line in iter(p.stdout.readline, ''):
         if not line:
             break
         match = _TUNNEL_URL_RE.search(line)
-        if match and _tunnel_url["value"] is None:
-            _tunnel_url["value"] = match.group(0)
-            _tunnel_url_found.set()
+        if match and url_holder["value"] is None:
+            url_holder["value"] = match.group(0)
+            url_found.set()
 
 
-def start_tunnel() -> subprocess.Popen:
-    print("[launcher] starting tunnel...")
-    p = subprocess.Popen(
-        TUNNEL_CMD,
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        text=True, bufsize=1,
-    )
-    procs.append(("tunnel", p))
-    threading.Thread(target=_read_tunnel_output, args=(p,), daemon=True).start()
-    if _tunnel_url_found.wait(timeout=20):
-        print(f"[launcher] tunnel ready: {_tunnel_url['value']}")
-        print("[launcher] share that URL -- it stops working the moment you stop run.py")
-    else:
-        print("[launcher] WARNING: tunnel did not report a URL within 20s. Check that "
-              "cloudflared is installed (winget install --id Cloudflare.cloudflared) and "
-              "that you have an internet connection. Backend/frontend are still running "
-              "locally regardless.")
+def start_tunnel(max_attempts: int = 3) -> subprocess.Popen:
+    """Launch cloudflared, retrying if it doesn't report a URL in time.
+
+    Cloudflare's free, account-less "quick tunnel" registration is known to
+    occasionally fail or hang with no error -- observed directly during
+    development: three back-to-back manual invocations of the exact same
+    command produced a URL in ~7s, then silently never produced one at all,
+    then worked again. A single 20s attempt is not reliable enough on its
+    own; retrying a fresh cloudflared process (new registration attempt)
+    resolves it most of the time without any user action.
+    """
+    p = None
+    for attempt in range(1, max_attempts + 1):
+        print(f"[launcher] starting tunnel (attempt {attempt}/{max_attempts})...")
+        p = subprocess.Popen(
+            TUNNEL_CMD,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, bufsize=1,
+        )
+        url_holder = {"value": None}
+        url_found = threading.Event()
+        threading.Thread(target=_read_tunnel_output, args=(p, url_holder, url_found), daemon=True).start()
+        if url_found.wait(timeout=20):
+            procs.append(("tunnel", p))
+            _tunnel_url["value"] = url_holder["value"]
+            # Matches Vite's own "->  Local:"/"->  Network:" banner column
+            # width so this reads as one more line in that same list instead
+            # of a separate, easy-to-miss [launcher] message. Plain ASCII
+            # "->" (not Vite's Unicode arrow) on purpose -- Python's stdout
+            # on some Windows consoles/interpreters is still the legacy
+            # cp1252 codepage, which can't encode "➜" and crashes print()
+            # with UnicodeEncodeError.
+            print(f"  ->  Public:  {_tunnel_url['value']}/  (via Cloudflare Tunnel)")
+            print("[launcher] share that URL -- it stops working the moment you stop run.py")
+            return p
+        # This attempt's cloudflared process didn't produce a URL in time --
+        # stop it (killing the whole tree, matching _kill_tree's reasoning)
+        # before retrying, so a stuck/zombie attempt doesn't linger.
+        _kill_tree(p, f"tunnel (attempt {attempt})")
+        if attempt < max_attempts:
+            print(f"[launcher] tunnel attempt {attempt} did not report a URL within 20s -- retrying...")
+    print(f"[launcher] WARNING: tunnel did not report a URL after {max_attempts} attempts. Check "
+          "that cloudflared is installed (winget install --id Cloudflare.cloudflared) and that "
+          "you have an internet connection. Backend/frontend are still running locally regardless.")
     return p
 
 
@@ -324,6 +412,14 @@ if __name__ == "__main__":
                   "tunnel start. Backend/frontend may still be usable locally; check for errors above.")
     print("[launcher] both running. Backend on :8000, frontend on its dev port.")
     print("[launcher] Ctrl+C to stop both, or run `python run.py` again (even from another terminal) to stop them.")
+    if TUNNEL_MODE and _tunnel_url["value"]:
+        # Repeat the URL down here, after all the startup noise above, so
+        # it's the last thing printed and easy to spot/copy without
+        # scrolling back up through backend/frontend/tunnel startup logs.
+        print()
+        print("=" * 60)
+        print(f"  Public URL: {_tunnel_url['value']}")
+        print("=" * 60)
     # wait for either to exit
     for name, p in procs:
         p.wait()
