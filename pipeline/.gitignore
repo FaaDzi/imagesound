@@ -7,3 +7,7 @@ output/fad_scores.csv
 venv/
 __pycache__/
 *.pyc
+output/.work/
+output/listening_test/
+output/crackle_ab/
+output/edm_variance/

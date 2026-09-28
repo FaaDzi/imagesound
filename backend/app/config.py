@@ -16,8 +16,10 @@ DIR_TEMP      = STORAGE_ROOT / "temp"
 
 DATABASE_PATH = Path(os.getenv("DATABASE_PATH", str(BACKEND_ROOT / "app.db")))
 
-MAX_UPLOAD_BYTES: int = 50 * 1024 * 1024  # 50 MB — a 3min stereo 44.1kHz WAV melody reference is ~30MB
-MAX_DURATION_SECONDS: int = 180
+MAX_UPLOAD_BYTES: int = 50 * 1024 * 1024  # 50 MB — a 3min stereo 44.1kHz WAV reference song is ~30MB
+# Sanity ceiling only. Each model declares its real duration limits in
+# pipeline/models.json and requests are validated against those.
+MAX_DURATION_SECONDS: int = 3600
 
 # Rate limiting (requests per minute per client IP)
 RATE_LIMIT_GENERATE: str = "10/minute"
@@ -32,13 +34,18 @@ RATE_LIMIT_LOGIN: str = "10/minute"
 # tunneled, and Vite proxies /api/* to the backend same-origin, so the
 # browser never makes a cross-origin request to the backend that CORS would
 # need to allow.
-FRONTEND_ORIGINS: list[str] = ["http://localhost:3000"]
+FRONTEND_ORIGINS: list[str] = ["http://localhost:4000"]
 
 
-# Model availability — set SMALL_MODEL_AVAILABLE to True once musicgen-small is downloaded.
-# When False, any request specifying model="small" is rejected at the router with a clear
-# error before touching the pipeline — nothing calls get_pretrained("facebook/musicgen-small").
-SMALL_MODEL_AVAILABLE: bool = True
+# Longest song the shared `user` account may generate, so one public visitor
+# can't hold the GPU for minutes. The admin is limited only by the model.
+USER_MAX_DURATION_SECONDS: int = int(os.getenv("USER_MAX_DURATION_SECONDS", "60"))
+
+
+# Below this much free system RAM, POST /generate still runs but warns: the
+# model load needs ~6 GB, so less than this risks a paging stall on the host.
+LOW_RAM_WARN_GB: float = float(os.getenv("LOW_RAM_WARN_GB", "7"))
+
 
 # How long an unsaved generated song is kept before cleanup sweeps it.
 # A saved song always gets the standard 7-day window (set at save time).
@@ -54,6 +61,9 @@ UNSAVED_EXPIRY_SECONDS: int = int(os.getenv("UNSAVED_EXPIRY_SECONDS", str(6 * 36
 # empty string, which os.getenv would happily return as-is; SessionMiddleware
 # then silently accepts that empty string as the signing key.
 SESSION_SECRET_KEY: str = os.getenv("SESSION_SECRET_KEY") or "dev-only-insecure-secret-change-me"
+
+# Mark the session cookie Secure. Set by run.py --tunnel; see main.py.
+SESSION_HTTPS_ONLY: bool = os.getenv("SESSION_HTTPS_ONLY") == "1"
 
 
 def ensure_storage_dirs() -> None:

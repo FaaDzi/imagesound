@@ -11,10 +11,11 @@ Supported formats: wav, mp3, flac, m4a, ogg.
 
 import re
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from starlette.background import BackgroundTask
 
+from app.access import owner_filter
 from app.config import DIR_CONVERTED, DIR_MIDI
 from app.convert import ALLOWED_FORMATS, content_type_for, convert_audio, conversion_available
 from app.database import get_connection
@@ -36,14 +37,16 @@ def _filename_slug(prompt: str | None, file_id: str) -> str:
 @router.get("/download/{file_id}")
 def download(
     file_id: str,
+    request: Request,
     format: str = Query(default="wav", description="Target audio format"),
 ):
     fmt = format.lower().strip()
+    clause, params = owner_filter(request)
 
     with get_connection() as conn:
         row = conn.execute(
-            "SELECT id, job_status, converted_key, prompt, output_format FROM files WHERE id=?",
-            (file_id,),
+            "SELECT id, job_status, converted_key, prompt, output_format FROM files WHERE id=?" + clause,
+            (file_id, *params),
         ).fetchone()
 
     if row is None:

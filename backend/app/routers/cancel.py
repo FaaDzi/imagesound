@@ -15,10 +15,12 @@ Failed / Cancelled:
   Already terminal — returns 409.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
+
+from app.access import owner_filter
 
 from app.config import DIR_CONVERTED, DIR_ORIGINALS
-from app.database import get_connection
+from app.database import drop_cancelled, get_connection, original_in_use
 
 router = APIRouter()
 
@@ -26,11 +28,12 @@ _TERMINAL = frozenset({"failed", "cancelled"})
 
 
 @router.post("/cancel/{file_id}", status_code=200)
-def cancel_job(file_id: str):
+def cancel_job(file_id: str, request: Request):
+    clause, params = owner_filter(request)
     with get_connection() as conn:
         row = conn.execute(
-            "SELECT job_status, original_key, converted_key FROM files WHERE id=?",
-            (file_id,),
+            "SELECT job_status, input_type, original_key, converted_key FROM files WHERE id=?" + clause,
+            (file_id, *params),
         ).fetchone()
 
         if row is None:
@@ -45,15 +48,15 @@ def cancel_job(file_id: str):
             )
 
         if status == "done":
-            # Race: job completed just before cancel arrived. Honor the cancel — delete everything.
-            for directory, key in [
-                (DIR_ORIGINALS, row["original_key"]),
-                (DIR_CONVERTED, row["converted_key"]),
-            ]:
-                if key:
-                    (directory / key).unlink(missing_ok=True)
-            conn.execute("DELETE FROM files WHERE id=?", (file_id,))
-            conn.commit()
+            # Race: job completed just before cancel arrived. Honor the cancel:
+            # drop the song. The uploaded image stays when it is this row's
+            # upload (so it can be generated again) or another row's too.
+            if row["converted_key"]:
+                (DIR_CONVERTED / row["converted_key"]).unlink(missing_ok=True)
+            if (row["input_type"] != "image" and row["original_key"]
+                    and not original_in_use(conn, row["original_key"], file_id)):
+                (DIR_ORIGINALS / row["original_key"]).unlink(missing_ok=True)
+            drop_cancelled(conn, file_id)
             return {"id": file_id, "cancelled": True}
 
         # queued / loading_model / processing:

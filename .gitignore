@@ -16,6 +16,13 @@ __pycache__/
 *.pyc
 *.pyo
 
+# ACE-Step: vendored upstream clone + the uv-managed Python/caches and HF
+# model cache that are deliberately kept inside the project folder (on D:)
+third_party/
+.uv/
+.hf-cache/
+models/
+
 # run.py launcher state
 .run.pid
 
@@ -24,3 +31,12 @@ graphify-out/
 
 # superpowers brainstorming visual-companion session state
 .superpowers/
+.torch-cache/
+.venv-beat/
+.tmp-build/
+
+# Public status page -- its own public repo (GitHub Pages), not part of this one
+status-page/
+
+# Standalone tools kept inside the project (e.g. cloudflared.exe), not source
+tools/

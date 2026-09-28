@@ -100,7 +100,7 @@ export function Home() {
               className="font-mono text-xs uppercase tracking-widest opacity-70 mb-1"
               style={{ color: 'var(--accent-tertiary)' }}
             >
-              // image &#8646; sound, entirely in the browser
+              // a picture, a song or a few words &rarr; a new song
             </p>
             <h2
               className="text-2xl md:text-3xl font-display font-bold uppercase tracking-wide"
@@ -283,13 +283,13 @@ export function Home() {
           className="lg:sticky lg:top-24 border-2 rounded-[var(--radius-panel)] p-6 flex flex-col gap-4"
           style={{ borderColor: 'var(--border-muted)', backgroundColor: 'var(--bg-card)' }}
         >
-          <p className="font-mono text-[10px] uppercase tracking-widest opacity-50" style={{ color: 'var(--text-muted)' }}>
-            spectrogram &rarr; waveform
+          <p className="font-mono text-[11px] uppercase tracking-widest opacity-50" style={{ color: 'var(--text-muted)' }}>
+            how it works
           </p>
           <Waveform variant="ambient" />
           <p className="font-mono text-xs leading-relaxed opacity-70" style={{ color: 'var(--text-muted)' }}>
-            Every upload gets reversed into sound — an image's pixel data becomes a spectrogram, and the
-            spectrogram becomes the waveform you hear.
+            Your picture or description is put into words, and a music model (ACE-Step) turns those
+            words into a song. Upload a song instead to remix it, or switch on vocals and write lyrics.
           </p>
         </div>
       </div>

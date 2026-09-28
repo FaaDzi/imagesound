@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAudioEffects } from '../../hooks/useAudioEffects';
+import { Hint, Muted } from './Hint';
 
 // Local slider helper — only used within the effects panel.
 function EffectSlider({
@@ -16,12 +17,10 @@ function EffectSlider({
   return (
     <div>
       <div className="flex items-center justify-between mb-0.5">
-        <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--accent-secondary)' }}>
+        <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: 'var(--accent-secondary)' }}>
           {label}
         </span>
-        <span className="text-[10px] font-mono" style={{ color: 'var(--accent-secondary)', opacity: 0.65 }}>
-          {display(value)}
-        </span>
+        <Muted>{display(value)}</Muted>
       </div>
       <input
         type="range"
@@ -54,7 +53,7 @@ export function EffectsPanel({ effects }: EffectsPanelProps) {
         {effects.effectsAvailable ? (
           <button
             onClick={effects.resetEffects}
-            className="text-[9px] font-bold uppercase px-1.5 py-0.5 border transition-colors"
+            className="text-[10px] font-bold uppercase px-1.5 py-0.5 border transition-colors"
             style={{ borderColor: 'var(--accent-secondary)', color: 'var(--accent-secondary)' }}
             onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--accent-secondary)'; e.currentTarget.style.color = 'var(--bg)'; }}
             onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--accent-secondary)'; }}
@@ -62,18 +61,45 @@ export function EffectsPanel({ effects }: EffectsPanelProps) {
             RESET
           </button>
         ) : (
-          <span className="text-[9px] font-mono uppercase" style={{ color: 'var(--accent-secondary)', opacity: 0.4 }}>
-            UNAVAILABLE
-          </span>
+          <Muted>UNAVAILABLE</Muted>
         )}
       </div>
 
       {!effects.effectsAvailable ? (
-        <p className="text-[10px] font-mono uppercase" style={{ color: 'var(--accent-secondary)', opacity: 0.5 }}>
-          // WEB AUDIO SETUP FAILED — CHECK BROWSER CONSOLE
-        </p>
+        <Hint>Web Audio setup failed — check the browser console.</Hint>
       ) : (
         <div className="flex flex-col gap-2.5">
+          {/* PRESETS — the intended way in; the sliders below are fine-tuning.
+              AUTO appears first when the track measured over its style's
+              targets, and is already applied by then. See EFFECT_PRESETS. */}
+          <div>
+            <div className="flex flex-wrap gap-1">
+              {effects.presets.map(preset => {
+                const active = effects.activePreset === preset.id;
+                return (
+                  <button
+                    key={preset.id}
+                    onClick={() => effects.applyPreset(preset.id)}
+                    title={preset.help}
+                    className="text-[11px] font-bold uppercase px-2.5 py-1 min-h-[40px] sm:min-h-0 border transition-colors"
+                    style={{
+                      borderColor: 'var(--accent-secondary)',
+                      color: active ? 'var(--bg)' : 'var(--accent-secondary)',
+                      backgroundColor: active ? 'var(--accent-secondary)' : 'transparent',
+                    }}
+                  >
+                    {preset.label}
+                  </button>
+                );
+              })}
+            </div>
+            <Hint>
+              {effects.isAnalysing
+                ? 'Analysing track…'
+                : effects.presets.find(p => p.id === effects.activePreset)?.help ?? 'Custom settings.'}
+            </Hint>
+          </div>
+
           {/* GAIN */}
           <EffectSlider
             label="GAIN"
@@ -85,20 +111,20 @@ export function EffectsPanel({ effects }: EffectsPanelProps) {
 
           {/* EQ */}
           <div>
-            <p className="text-[9px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--accent-secondary)', opacity: 0.6 }}>EQ</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--text-muted)' }}>EQ</p>
             <div className="flex flex-col gap-1.5">
               <EffectSlider label="LOW"  value={effects.params.eqLow}  min={-12} max={12} step={0.5}
                 display={v => `${v > 0 ? '+' : ''}${v.toFixed(1)}dB`} onChange={v => effects.updateParam('eqLow', v)} />
-              <EffectSlider label="MID"  value={effects.params.eqMid}  min={-12} max={12} step={0.5}
+              <EffectSlider label="HARSH 3K"  value={effects.params.eqMid}  min={-12} max={12} step={0.5}
                 display={v => `${v > 0 ? '+' : ''}${v.toFixed(1)}dB`} onChange={v => effects.updateParam('eqMid', v)} />
-              <EffectSlider label="HIGH" value={effects.params.eqHigh} min={-12} max={12} step={0.5}
+              <EffectSlider label="HIGH 8K" value={effects.params.eqHigh} min={-12} max={12} step={0.5}
                 display={v => `${v > 0 ? '+' : ''}${v.toFixed(1)}dB`} onChange={v => effects.updateParam('eqHigh', v)} />
             </div>
           </div>
 
           {/* COMPRESSION */}
           <div>
-            <p className="text-[9px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--accent-secondary)', opacity: 0.6 }}>COMP</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--text-muted)' }}>COMP</p>
             <div className="flex flex-col gap-1.5">
               <EffectSlider label="THRESH" value={effects.params.compThreshold} min={-60} max={0} step={1}
                 display={v => `${v}dB`} onChange={v => effects.updateParam('compThreshold', v)} />
@@ -118,10 +144,12 @@ export function EffectsPanel({ effects }: EffectsPanelProps) {
         </div>
       )}
 
-      <p className="text-[9px] font-mono uppercase mt-2" style={{ color: 'var(--accent-secondary)', opacity: 0.4 }}>
-        {effects.effectsAvailable
-          ? '// live preview · same engine renders the download'
-          : '// effects activate when you play a song'}
+      <p className="mt-2">
+        <Muted>
+          {effects.effectsAvailable
+            ? '// live preview · same engine renders the download'
+            : '// effects activate when you play a song'}
+        </Muted>
       </p>
     </div>
   );

@@ -2,7 +2,7 @@
 
 Must be run with the ISOLATED .venv-fad interpreter, never the main .venv --
 fadtk requires torch>=2.3, which conflicts with the main app's pinned
-torch==2.1.0 (needed by audiocraft/xformers). The two can never share one
+torch, which the generation models pin to their own versions. The two must never share one
 environment.
 
 Usage (from repo root):

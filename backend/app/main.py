@@ -13,9 +13,9 @@ from slowapi.errors import RateLimitExceeded
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.cleanup import start_cleanup_scheduler
-from app.config import ensure_storage_dirs, FRONTEND_ORIGINS, SESSION_SECRET_KEY
+from app.config import ensure_storage_dirs, FRONTEND_ORIGINS, SESSION_HTTPS_ONLY, SESSION_SECRET_KEY
 from app.convert import conversion_available
-from app.database import init_db
+from app.database import get_user, init_db
 from app.jobs import start_heartbeat, start_worker
 from app.limiter import limiter
 from app.routers.audio import router as audio_router
@@ -28,13 +28,14 @@ from app.routers.download import router as download_router
 from app.routers.generate import router as generate_router
 from app.routers.image import router as image_router
 from app.routers.library import router as library_router
+from app.routers.models import router as models_router
 from app.routers.save import router as save_router
 from app.routers.status import router as status_router
 from app.routers.upload import router as upload_router
 
 log = logging.getLogger(__name__)
 
-# Ensure project root is on sys.path (needed by jobs.py and _preload_musicgen).
+# Ensure project root is on sys.path (needed by jobs.py to import the pipeline package).
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
@@ -56,10 +57,15 @@ async def lifespan(app: FastAPI):
         print("  [startup] WARNING: PyAV not found. /download will only serve WAV.", flush=True)
         log.warning("PyAV not importable — format conversion unavailable. Run: pip install av")
 
+    from pipeline.models import list_models
+    for spec in list_models():
+        ok, reason = spec.availability()
+        print(f"  [startup] model {spec.id}: {'ready' if ok else 'UNAVAILABLE - ' + reason}", flush=True)
+
     print(f"  [startup] Backend ready. PID={os.getpid()} threads={threading.active_count()}", flush=True)
     print(f"  [startup] If generation is slow after a restart, open Task Manager and confirm", flush=True)
     print(f"  [startup] no OTHER python.exe processes are holding GPU memory (kill them first).", flush=True)
-    log.info("Backend ready. PID=%d — MusicGen loads on first generation request.", os.getpid())
+    log.info("Backend ready. PID=%d — each model loads in its own worker process per generation.", os.getpid())
 
     yield
 
@@ -105,33 +111,40 @@ def _is_public(request: Request) -> bool:
         # even sent for real. This check does not depend on middleware
         # registration order elsewhere in this file.
         return True
-    if (request.url.path, request.method) in _PUBLIC_EXACT:
-        return True
-    if request.method == "GET" and request.url.path == "/library":
-        return True
-    if request.method == "GET" and request.url.path.startswith("/image/"):
-        return True
-    return False
+    # /library and /image/* used to be public too. With a shared public
+    # account, each role only sees its own songs, so both need a login now.
+    return (request.url.path, request.method) in _PUBLIC_EXACT
 
 
 @app.middleware("http")
 async def auth_gate(request: Request, call_next):
     if _is_public(request):
         return await call_next(request)
-    if not request.session.get("username"):
+    # Re-read the account on every request rather than trusting the role in
+    # the cookie: a renamed or deleted account, or a changed role, takes
+    # effect immediately. Sessions from before roles existed carry no
+    # user_id and simply have to log in again.
+    user_id = request.session.get("user_id")
+    user = get_user(user_id) if user_id else None
+    if user is None:
+        request.session.clear()
         return JSONResponse({"error": "not logged in"}, status_code=401)
+    request.state.user = dict(user)
     return await call_next(request)
 
 
 # Signed-cookie session (see config.py's SESSION_SECRET_KEY). same_site="lax"
-# works correctly for cross-port localhost dev (cookies aren't port-scoped);
-# secure=True is applied automatically by Starlette whenever the request
-# arrives over HTTPS, so this needs no branching for local HTTP vs. future
-# HTTPS deployment.
+# works correctly for cross-port localhost dev (cookies aren't port-scoped).
+# Starlette only adds the Secure flag when https_only=True -- it cannot see
+# the tunnel's HTTPS, since requests arrive from Vite's proxy over plain HTTP.
+# run.py --tunnel sets SESSION_HTTPS_ONLY=1 so the cookie is never sent over
+# a plain-HTTP request to the public hostname. Browsers treat localhost as a
+# secure context, so local access keeps working either way.
 app.add_middleware(
     SessionMiddleware,
     secret_key=SESSION_SECRET_KEY,
     same_site="lax",
+    https_only=SESSION_HTTPS_ONLY,
     max_age=30 * 24 * 3600,  # 30 days
 )
 
@@ -160,6 +173,7 @@ app.include_router(generate_router)
 app.include_router(cancel_router)
 app.include_router(image_router)
 app.include_router(library_router)
+app.include_router(models_router)
 app.include_router(save_router)
 app.include_router(status_router)
 app.include_router(audio_router)
@@ -170,4 +184,11 @@ app.include_router(midi_router)
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    # Read cross-origin by the public status page (a separate GitHub Pages
+    # site) to decide whether to redirect. Opened to any origin for this one
+    # route only -- it carries no data and no credentials, so the app-wide
+    # credentialed CORS list above stays locked to the real frontend.
+    return JSONResponse(
+        {"status": "ok"},
+        headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "no-store"},
+    )

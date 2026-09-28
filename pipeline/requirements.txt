@@ -1,17 +1,15 @@
-# Phase E pipeline — needs BOTH the MusicGen and Gemini dependency sets.
+# Main (backend) environment: only the Gemini image->prompt step lives here.
 #
-# RECOMMENDED: reuse the musicgen_test venv and add the missing packages:
+# Music-generation models are deliberately NOT installed in this environment.
+# Each one runs in its own virtualenv as a subprocess (see pipeline/models.json
+# and pipeline/runner.py), so models with conflicting dependencies (different
+# torch / transformers versions) never have to share a Python.
 #
-#   Activate the musicgen_test venv, then:
-#     pip install google-genai>=2.0.0 Pillow>=10.0.0
-#
-# If starting fresh, install torch WITH CUDA first (see musicgen_test/requirements.txt),
-# then install the rest:
-#
-#   pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
+#   pip install -r backend/requirements.txt
 #   pip install -r pipeline/requirements.txt
+#
+# ACE-Step's environment is created by scripts/setup_ace_step.ps1.
 
-audiocraft>=1.3.0
 google-genai>=2.0.0
 python-dotenv>=1.0.0
 Pillow>=10.0.0

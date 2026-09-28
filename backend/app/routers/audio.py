@@ -12,6 +12,7 @@ to the WHERE clause (see the TODO comment below).
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
 
+from app.access import owner_filter
 from app.config import DIR_CONVERTED
 from app.database import get_connection
 
@@ -23,11 +24,11 @@ _CHUNK = 256 * 1024  # 256 KB read chunks for streaming
 @router.get("/audio/{file_id}")
 def get_audio(file_id: str, request: Request):
     # DB gate — only serve files that finished successfully.
-    # TODO: add `AND owner_id=?` here once auth exists.
+    clause, params = owner_filter(request)
     with get_connection() as conn:
         row = conn.execute(
-            "SELECT id, job_status, converted_key FROM files WHERE id=?",
-            (file_id,),
+            "SELECT id, job_status, converted_key FROM files WHERE id=?" + clause,
+            (file_id, *params),
         ).fetchone()
 
     if row is None:

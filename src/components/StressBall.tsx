@@ -19,6 +19,16 @@ const REST_EPSILON = 0.05;
 const REST_THRESHOLD_FRAMES = 60;
 const REST_SKIP_FRAMES = 6;
 
+// Physics runs in fixed 60 Hz steps, however fast the screen refreshes. It
+// used to step once per frame, so a phone dropping to 30 fps (battery saver,
+// a busy page) ran everything at half speed, and a 120 Hz screen at double.
+const STEP_MS = 1000 / 60;
+const MAX_FRAME_MS = 100;     // after a stall, catch up at most this much
+// Extra grab radius outside a shape's outline: a fingertip is ~40px wide and
+// the smallest shapes are 36px across, so an exact test missed most taps.
+const GRAB_SLOP_TOUCH = 22;
+const GRAB_SLOP_MOUSE = 4;
+
 type Shape = 'circle' | 'triangle' | 'square';
 
 interface Node {
@@ -159,6 +169,7 @@ function applyParams(obj: PhysObject, params: Params): void {
   obj.params = params;
   obj.restArea = shoelaceArea(obj.template) * params.size * params.size;
   obj.restChord = averageChordLen(obj.template) * params.size;
+  obj.idleFrames = 0;   // resettle at full rate
 }
 
 function randomParams(): Params {
@@ -250,8 +261,13 @@ export default function StressBall() {
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationFrameRef = useRef<number | null>(null);
+  // Last shape a pointer press grabbed, for the double-click fallback below.
+  const lastGrabRef = useRef<{ id: string; t: number } | null>(null);
 
   const collidersRef = useRef<Rect[]>([]);
+  // Set when something visible changed without physics running (selection,
+  // a deleted shape, resize, theme): the canvas is only redrawn when needed.
+  const dirtyRef = useRef(true);
   const accentHslRef = useRef<{ h: number; s: number; l: number }>({ h: 100, s: 100, l: 55 });
   const stateRef = useRef({
     width: window.innerWidth,
@@ -261,6 +277,7 @@ export default function StressBall() {
 
   const selectObject = (id: string | null) => {
     for (const o of objectsRef.current) o.selected = o.id === id;
+    dirtyRef.current = true;
     setSelectedId(id);
     if (id) {
       const obj = objectsRef.current.find(o => o.id === id);
@@ -284,6 +301,7 @@ export default function StressBall() {
 
   const handleDelete = (id: string) => {
     objectsRef.current = objectsRef.current.filter(o => o.id !== id);
+    dirtyRef.current = true;
     setObjectsMeta(objectsRef.current.map(o => ({ id: o.id, shape: o.shape })));
     setSelectedId(curr => (curr === id ? null : curr));
   };
@@ -363,6 +381,7 @@ export default function StressBall() {
     const updateAccentColor = () => {
       const hex = getComputedStyle(document.body).getPropertyValue('--accent').trim() || '#39ff14';
       accentHslRef.current = hexToHsl(hex);
+      dirtyRef.current = true;
     };
     updateAccentColor();
     const themeObserver = new MutationObserver(updateAccentColor);
@@ -373,7 +392,9 @@ export default function StressBall() {
       const height = window.innerHeight;
       if (width === 0 || height === 0) return;
 
-      const dpr = window.devicePixelRatio || 1;
+      // Capped at 2: phones report 3, which makes every frame 2.25x the
+      // pixels of a 2x canvas for no visible gain on soft, glowing shapes.
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
       canvas.width = width * dpr;
       canvas.height = height * dpr;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -389,38 +410,72 @@ export default function StressBall() {
       s.height = height;
       s.ceilingY = ceilingY;
       rebuildColliders();
+      dirtyRef.current = true;
     };
 
+    // Scroll fires many times per frame on a phone, and each rebuild measures
+    // every panel; mark the colliders stale instead and rebuild once per frame.
+    let collidersStale = true;
+    const markCollidersStale = () => { collidersStale = true; };
+    const coarsePointer = window.matchMedia?.('(pointer: coarse)').matches ?? false;
+
     window.addEventListener('resize', resizeCanvas);
-    window.addEventListener('scroll', rebuildColliders);
-    const rebuildInterval = setInterval(rebuildColliders, 500);
+    window.addEventListener('scroll', markCollidersStale, { passive: true });
+    const rebuildInterval = setInterval(markCollidersStale, 500);
     resizeCanvas();
 
-    const startDrag = (e: PointerEvent) => {
+    // Top-most shape under the point, or failing that the nearest one whose
+    // outline is within `slop` px of it.
+    const hitTest = (x: number, y: number, slop: number): PhysObject | null => {
       const objs = objectsRef.current;
       for (let idx = objs.length - 1; idx >= 0; idx--) {
-        const obj = objs[idx];
-        if (pointInPolygon(e.clientX, e.clientY, obj.nodes)) {
-          e.preventDefault();
-          e.stopPropagation();
-          obj.isDragging = true;
-          obj.pointerX = e.clientX;
-          obj.pointerY = e.clientY;
+        if (pointInPolygon(x, y, objs[idx].nodes)) return objs[idx];
+      }
+      let best: PhysObject | null = null;
+      let bestGap = slop;
+      for (const o of objs) {
+        const gap = Math.hypot(x - o.center.x, y - o.center.y) - o.params.size;
+        if (gap < bestGap) { best = o; bestGap = gap; }
+      }
+      return best;
+    };
+    const slopFor = (pointerType: string) => (pointerType === 'mouse' ? GRAB_SLOP_MOUSE : GRAB_SLOP_TOUCH);
 
-          let minDist = Infinity;
-          obj.grabbedNodeIndex = 0;
-          for (let i = 0; i < N; i++) {
-            const d = Math.hypot(obj.nodes[i].x - obj.pointerX, obj.nodes[i].y - obj.pointerY);
-            if (d < minDist) {
-              minDist = d;
-              obj.grabbedNodeIndex = i;
-            }
-          }
-          obj.pointerSamples = [{ x: obj.pointerX, y: obj.pointerY, t: performance.now() }];
-          draggingObjRef.current = obj;
-          break;
+    const startDrag = (e: PointerEvent) => {
+      if ((e.target as HTMLElement | null)?.closest?.('[data-physics-ui]')) return;
+      const obj = hitTest(e.clientX, e.clientY, slopFor(e.pointerType));
+      if (!obj) return;
+      e.preventDefault();
+      e.stopPropagation();
+      obj.isDragging = true;
+      obj.pointerX = e.clientX;
+      obj.pointerY = e.clientY;
+
+      let minDist = Infinity;
+      obj.grabbedNodeIndex = 0;
+      for (let i = 0; i < N; i++) {
+        const d = Math.hypot(obj.nodes[i].x - obj.pointerX, obj.nodes[i].y - obj.pointerY);
+        if (d < minDist) {
+          minDist = d;
+          obj.grabbedNodeIndex = i;
         }
       }
+      obj.pointerSamples = [{ x: obj.pointerX, y: obj.pointerY, t: performance.now() }];
+      draggingObjRef.current = obj;
+      lastGrabRef.current = { id: obj.id, t: performance.now() };
+      obj.idleFrames = 0;
+    };
+
+    // On a touchscreen the browser pans the page under a dragged shape and
+    // then cancels the drag (pointercancel), which read as a bad hitbox.
+    // Pointer events can't stop that; a non-passive touchstart on a shape can.
+    const onTouchStart = (e: TouchEvent) => {
+      if ((e.target as HTMLElement | null)?.closest?.('[data-physics-ui]')) return;
+      const t = e.touches[0];
+      if (t && hitTest(t.clientX, t.clientY, GRAB_SLOP_TOUCH)) e.preventDefault();
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (draggingObjRef.current) e.preventDefault();
     };
 
     const moveDrag = (e: PointerEvent) => {
@@ -510,11 +565,20 @@ export default function StressBall() {
     const handleDblClick = (e: MouseEvent) => {
       if ((e.target as HTMLElement).closest('[data-physics-ui]')) return;
       const objs = objectsRef.current;
-      for (let idx = objs.length - 1; idx >= 0; idx--) {
-        if (pointInPolygon(e.clientX, e.clientY, objs[idx].nodes)) {
-          selectObject(objs[idx].id);
-          return;
-        }
+      const hit = hitTest(e.clientX, e.clientY, GRAB_SLOP_MOUSE);
+      if (hit) {
+        selectObject(hit.id);
+        return;
+      }
+      // Nothing under the cursor — but each press of a double-click also grabs
+      // and throws the shape, so by the second click it has usually squirmed
+      // out from under the pointer. Without this the gesture would land on
+      // "empty space" and deselect, making a shape that isn't auto-selected
+      // (the one spawned on mount) impossible to edit by double-clicking it.
+      const grab = lastGrabRef.current;
+      if (grab && performance.now() - grab.t < 600 && objs.some(o => o.id === grab.id)) {
+        selectObject(grab.id);
+        return;
       }
       selectObject(null);
     };
@@ -524,21 +588,19 @@ export default function StressBall() {
     window.addEventListener('pointerup', endDrag, { capture: true });
     window.addEventListener('pointercancel', endDrag, { capture: true });
     window.addEventListener('dblclick', handleDblClick, { capture: true });
+    window.addEventListener('touchstart', onTouchStart, { capture: true, passive: false });
+    window.addEventListener('touchmove', onTouchMove, { capture: true, passive: false });
 
     let isHidden = document.hidden;
     const handleVisibility = () => { isHidden = document.hidden; };
     document.addEventListener('visibilitychange', handleVisibility);
 
-    const tick = () => {
-      animationFrameRef.current = requestAnimationFrame(tick);
-      if (isHidden) return;
-
+    // One 60 Hz physics step. Returns whether anything moved (and so needs
+    // drawing): resting shapes only step 1 in REST_SKIP_FRAMES.
+    const step = (): boolean => {
+      let ran = false;
       const s = stateRef.current;
       const colliders = collidersRef.current;
-      const { h: accentH, s: accentS, l: accentL } = accentHslRef.current;
-
-      ctx.clearRect(0, 0, s.width, s.height);
-
       const objs = objectsRef.current;
 
       for (const obj of objs) {
@@ -549,6 +611,7 @@ export default function StressBall() {
         }
 
         if (!skipPhysics) {
+          ran = true;
           let cx = 0, cy = 0;
           for (let i = 0; i < N; i++) {
             cx += obj.nodes[i].x;
@@ -769,9 +832,18 @@ export default function StressBall() {
             ob.center.y += ny * separation;
             oa.idleFrames = 0;
             ob.idleFrames = 0;
+            ran = true;
           }
         }
       }
+      return ran;
+    };
+
+    const draw = () => {
+      const s = stateRef.current;
+      const objs = objectsRef.current;
+      const { h: accentH, s: accentS, l: accentL } = accentHslRef.current;
+      ctx.clearRect(0, 0, s.width, s.height);
 
       for (const obj of objs) {
         const h = (accentH + obj.hueShift + 360) % 360;
@@ -797,8 +869,19 @@ export default function StressBall() {
         ctx.closePath();
 
         ctx.fillStyle = fillColor;
-        ctx.shadowColor = fillColor;
-        ctx.shadowBlur = 15;
+        if (coarsePointer) {
+          // shadowBlur is one of the slowest things a phone canvas does; a
+          // wide translucent stroke under the fill reads as the same glow.
+          ctx.save();
+          ctx.globalAlpha = 0.35;
+          ctx.lineWidth = 14;
+          ctx.strokeStyle = fillColor;
+          ctx.stroke();
+          ctx.restore();
+        } else {
+          ctx.shadowColor = fillColor;
+          ctx.shadowBlur = 15;
+        }
         ctx.fill();
 
         ctx.lineWidth = 2.5;
@@ -822,11 +905,30 @@ export default function StressBall() {
       }
     };
 
+    let last = performance.now();
+    let acc = 0;
+    const tick = (now: number) => {
+      animationFrameRef.current = requestAnimationFrame(tick);
+      if (isHidden) { last = now; return; }
+      acc += Math.min(now - last, MAX_FRAME_MS);
+      last = now;
+      if (collidersStale) { rebuildColliders(); collidersStale = false; }
+      let moved = false;
+      while (acc >= STEP_MS) {
+        if (step()) moved = true;
+        acc -= STEP_MS;
+      }
+      if (moved || dirtyRef.current) {
+        draw();
+        dirtyRef.current = false;
+      }
+    };
+
     animationFrameRef.current = requestAnimationFrame(tick);
 
     return () => {
       window.removeEventListener('resize', resizeCanvas);
-      window.removeEventListener('scroll', rebuildColliders);
+      window.removeEventListener('scroll', markCollidersStale);
       clearInterval(rebuildInterval);
       themeObserver.disconnect();
       window.removeEventListener('pointerdown', startDrag, { capture: true });
@@ -834,6 +936,8 @@ export default function StressBall() {
       window.removeEventListener('pointerup', endDrag, { capture: true });
       window.removeEventListener('pointercancel', endDrag, { capture: true });
       window.removeEventListener('dblclick', handleDblClick, { capture: true });
+      window.removeEventListener('touchstart', onTouchStart, { capture: true });
+      window.removeEventListener('touchmove', onTouchMove, { capture: true });
       document.removeEventListener('visibilitychange', handleVisibility);
       if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
     };

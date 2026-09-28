@@ -2,60 +2,58 @@
 @import "tailwindcss";
 
 :root, body.dark {
-  /* Y2K/Aqua-Chrome redesign — see docs/superpowers/specs/2026-08-04-y2k-aqua-redesign-design.md
-     Single anchor hue 230deg (cool blue) for BOTH light and dark mode — dark mode gets more
-     chroma + glow, never a different hue. Elevation reads as lighter, never shadowed. */
-  --bg: oklch(13% 0.014 230);
-  --bg-card: oklch(17% 0.016 230);
-  --bg-elevated: oklch(21% 0.018 230);
-  --input-bg: oklch(13% 0.014 230);
-  --text-primary: oklch(94% 0.008 230);
-  --text-muted: oklch(68% 0.010 230);
-  --text-heading: oklch(94% 0.008 230);
-  --accent: oklch(55% 0.19 230);
-  --accent-glow: oklch(55% 0.19 230 / 0.5);
-  --accent-secondary: oklch(74% 0.09 230);
-  --accent-tertiary: oklch(60% 0.07 230);
-  --color-warning: oklch(72% 0.15 70);
-  --color-danger: oklch(62% 0.20 25);
-  --border: oklch(30% 0.012 230);
-  --border-muted: oklch(30% 0.012 230);
-  --selected-bg: oklch(55% 0.19 230);
-  --selected-text: oklch(0% 0 230);
+  /* Frutiger Aero / Aqua Redesign */
+  --bg: #092135;
+  --bg-card: rgba(10, 30, 50, 0.4);
+  --bg-elevated: rgba(20, 50, 80, 0.5);
+  --input-bg: rgba(0, 0, 0, 0.2);
+  --text-primary: #f0f8ff;
+  --text-muted: #bae6fd;
+  --text-heading: #ffffff;
+  --accent: #38bdf8;
+  --accent-glow: rgba(56, 189, 248, 0.6);
+  --accent-secondary: #0ea5e9;
+  --accent-tertiary: #0284c7;
+  --color-warning: #facc15;
+  --color-danger: #ef4444;
+  --border: rgba(255, 255, 255, 0.2);
+  --border-muted: rgba(255, 255, 255, 0.08);
+  --selected-bg: rgba(56, 189, 248, 0.4);
+  --selected-text: #ffffff;
 
   --theme-font-ui: 'Geist', sans-serif;
-  --theme-grid-opacity: 0; /* the cyberpunk grid overlay is retired — see Task 3 */
+  --theme-grid-opacity: 0;
 
   --radius-pill: 999px;
-  --radius-panel: 14px;
-  --radius-chip: 9px;
+  --radius-panel: 20px;
+  --radius-chip: 12px;
 }
 
 body.light {
-  --bg: oklch(97% 0.008 230);
-  --bg-card: oklch(94% 0.010 230);
-  --bg-elevated: oklch(99% 0.006 230);
-  --input-bg: oklch(99% 0.006 230);
-  --text-primary: oklch(20% 0.012 230);
-  --text-muted: oklch(45% 0.010 230);
-  --text-heading: oklch(20% 0.012 230);
-  --accent: oklch(58% 0.17 230);
-  --accent-glow: oklch(58% 0.17 230 / 0.35);
-  --accent-secondary: oklch(42% 0.10 230);
-  --accent-tertiary: oklch(52% 0.07 230);
-  --color-warning: oklch(70% 0.16 70);
-  --color-danger: oklch(58% 0.20 25);
-  --border: oklch(85% 0.008 230);
-  --border-muted: oklch(85% 0.008 230);
-  --selected-bg: oklch(58% 0.17 230);
-  --selected-text: oklch(0% 0 230);
+  --bg: #e0f2fe;
+  --bg-card: rgba(255, 255, 255, 0.5);
+  --bg-elevated: rgba(255, 255, 255, 0.8);
+  --input-bg: rgba(255, 255, 255, 0.7);
+  --text-primary: #0c4a6e;
+  --text-muted: #0284c7;
+  --text-heading: #082f49;
+  --accent: #0ea5e9;
+  --accent-glow: rgba(14, 165, 233, 0.4);
+  --accent-secondary: #38bdf8;
+  --accent-tertiary: #7dd3fc;
+  --color-warning: #eab308;
+  --color-danger: #ef4444;
+  --border: rgba(255, 255, 255, 0.6);
+  --border-muted: rgba(255, 255, 255, 0.3);
+  --selected-bg: #bae6fd;
+  --selected-text: #0c4a6e;
 
   --theme-font-ui: 'Geist', sans-serif;
   --theme-grid-opacity: 0;
 }
 
 @theme {
-  --font-mono: 'Geist Mono', monospace;  /* kept only for genuinely tabular content, not general UI */
+  --font-mono: 'Geist Mono', monospace;
   --font-display: 'Syne', sans-serif;
   --font-ui: 'Geist', sans-serif;
 
@@ -71,8 +69,6 @@ body.light {
   --color-selected-bg: var(--selected-bg);
   --color-selected-text: var(--selected-text);
 
-  /* Hallmark · 4pt named spacing scale — see design.md § Spacing.
-     Generates p-3xs..p-3xl / gap-3xs..gap-3xl etc. utilities. */
   --spacing-3xs: 0.125rem;
   --spacing-2xs: 0.25rem;
   --spacing-xs: 0.5rem;
@@ -93,8 +89,16 @@ body.light {
 
 body {
   background-color: var(--bg);
-  color: var(--accent);
+  background-image:
+    radial-gradient(circle at 15% 50%, rgba(56, 189, 248, 0.1), transparent 50%),
+    radial-gradient(circle at 85% 30%, rgba(2, 132, 199, 0.1), transparent 50%);
+  background-attachment: fixed;
+  color: var(--text-primary);
   font-family: var(--font-ui);
+  /* .aqua-drift full-bleeds to 100vw, which can be a hair wider than the
+     visible viewport (scrollbar width) on some browsers -- clip it instead
+     of letting that show up as a faint horizontal scrollbar. */
+  overflow-x: hidden;
 }
 
 * {
@@ -106,7 +110,7 @@ body {
   color: var(--selected-text);
 }
 
-/* Glitch effect styles */
+/* Glitch effect styles - softened for Aqua theme */
 .glitch {
   position: relative;
   display: inline-block;
@@ -118,49 +122,53 @@ body {
   left: 0;
   width: 100%;
   height: 100%;
-  background: var(--bg);
+  background: transparent;
 }
+/* Slices are percentages of the element, not fixed pixels.
+   These used to be `clip: rect(24px, 550px, 90px, 0)` and similar, written for
+   large hero text. The nav logo renders at 14-16px, so every one of those
+   rectangles started below the bottom of the element -- the offset copies were
+   never clipped into thin bands and instead smeared across the whole word,
+   which read as a line struck through the logo. Several keyframes also had
+   top > bottom, which is an empty rect. Percentages track the font size, so
+   this now behaves the same at any size.
+   `clip` is deprecated in favour of `clip-path` regardless. */
+/* Offsets in em, not px, for the same reason as the slices: a fixed 2px shift
+   is a subtle shimmer on 48px hero text and a third of a stroke width on the
+   16px nav logo, where it read as a second word printed through the first. */
 .glitch::before {
-  left: 2px;
-  text-shadow: -2px 0 var(--accent-secondary);
-  clip: rect(24px, 550px, 90px, 0);
+  left: 0.04em;
+  text-shadow: -0.03em 0 var(--accent-secondary);
+  clip-path: inset(10% 0 60% 0);
   animation: glitch-anim-2 3s infinite linear alternate-reverse;
 }
 .glitch::after {
-  left: -2px;
-  text-shadow: -2px 0 var(--accent-tertiary);
-  clip: rect(85px, 550px, 140px, 0);
+  left: -0.04em;
+  text-shadow: -0.03em 0 var(--accent-tertiary);
+  clip-path: inset(65% 0 10% 0);
   animation: glitch-anim 2.5s infinite linear alternate-reverse;
 }
 @keyframes glitch-anim {
-  0% { clip: rect(10px, 9999px, 83px, 0); }
-  20% { clip: rect(61px, 9999px, 12px, 0); }
-  40% { clip: rect(41px, 9999px, 5px, 0); }
-  60% { clip: rect(98px, 9999px, 14px, 0); }
-  80% { clip: rect(72px, 9999px, 99px, 0); }
-  100% { clip: rect(26px, 9999px, 34px, 0); }
+  0%   { clip-path: inset(20% 0 60% 0); }
+  20%  { clip-path: inset(65% 0 20% 0); }
+  40%  { clip-path: inset(40% 0 45% 0); }
+  60%  { clip-path: inset(10% 0 75% 0); }
+  80%  { clip-path: inset(70% 0 12% 0); }
+  100% { clip-path: inset(35% 0 50% 0); }
 }
 @keyframes glitch-anim-2 {
-  0% { clip: rect(23px, 9999px, 12px, 0); }
-  20% { clip: rect(81px, 9999px, 93px, 0); }
-  40% { clip: rect(11px, 9999px, 45px, 0); }
-  60% { clip: rect(6px, 9999px, 21px, 0); }
-  80% { clip: rect(94px, 9999px, 81px, 0); }
-  100% { clip: rect(65px, 9999px, 11px, 0); }
+  0%   { clip-path: inset(70% 0 15% 0); }
+  20%  { clip-path: inset(15% 0 70% 0); }
+  40%  { clip-path: inset(50% 0 30% 0); }
+  60%  { clip-path: inset(25% 0 65% 0); }
+  80%  { clip-path: inset(60% 0 25% 0); }
+  100% { clip-path: inset(5% 0 80% 0); }
 }
 
-/* Reduced motion — every animation in the app gets a fallback, including
-   ones that pre-date this pass (the glitch wordmark, Tailwind's animate-pulse
-   / animate-bounce utilities used across Home/Player/Library). Functional
-   loaders (progress bars, spinners) still run, just capped to 150ms. */
 @media (prefers-reduced-motion: reduce) {
   .glitch::before, .glitch::after {
     animation: none;
     display: none;
-  }
-  .animate-pulse, .animate-bounce {
-    animation-duration: 150ms;
-    animation-iteration-count: 1;
   }
 }
 
@@ -170,38 +178,81 @@ body {
 }
 ::-webkit-scrollbar-track {
   background: var(--bg);
-  border-left: 2px solid var(--accent);
+  border-left: 1px solid var(--border-muted);
 }
 ::-webkit-scrollbar-thumb {
   background: var(--accent);
+  border-radius: 7px;
+  border: 3px solid var(--bg);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: oklch(from var(--accent) calc(l + 0.1) c h);
+  background: var(--accent-secondary);
 }
 
+/* Thin, translucent scrollbar for scrolling panels inside the page (the
+   Studio's player column, the lyrics section row). The page-wide one above
+   is a 14px bar on a bordered track -- right for the page edge, chunky inside
+   a glass card on Windows, where scrollbars are always drawn. */
+.thin-scroll { scrollbar-width: thin; scrollbar-color: color-mix(in oklch, var(--accent) 45%, transparent) transparent; }
+.thin-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+.thin-scroll::-webkit-scrollbar-track { background: transparent; border: 0; }
+.thin-scroll::-webkit-scrollbar-thumb {
+  background: color-mix(in oklch, var(--accent) 45%, transparent);
+  border: 0;
+  border-radius: 3px;
+}
+
+/* Glassy Glossy Buttons (Frutiger Aero style) */
 .brutal-btn {
-  @apply px-5 py-2.5 font-semibold;
-  border: none;
+  @apply px-5 py-2.5 font-bold tracking-wide;
+  border: 1px solid rgba(255, 255, 255, 0.4);
   border-radius: var(--radius-pill);
-  color: var(--selected-text);
-  background: linear-gradient(160deg, oklch(from var(--accent) calc(l + 0.14) c h), var(--accent) 65%);
+  color: #fff;
+  background: linear-gradient(to bottom, 
+    rgba(255, 255, 255, 0.3) 0%, 
+    rgba(255, 255, 255, 0.05) 48%, 
+    rgba(0, 0, 0, 0.05) 50%, 
+    rgba(0, 0, 0, 0.2) 100%), 
+    var(--accent);
   box-shadow:
-    inset 0 1px 0 oklch(from var(--accent) calc(l + 0.35) calc(c * 0.3) h / 0.6),
+    inset 0 1px 1px rgba(255,255,255,0.8),
+    inset 0 -1px 2px rgba(0,0,0,0.1),
     0 4px 10px var(--accent-glow);
-  transition: transform var(--dur-micro) var(--ease-out), box-shadow var(--dur-micro) var(--ease-out);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  transition: all var(--dur-micro) var(--ease-out);
+  position: relative;
+  overflow: hidden;
+}
+.brutal-btn::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 10%; right: 10%; height: 40%;
+  background: linear-gradient(to bottom, rgba(255,255,255,0.5), transparent);
+  border-radius: 999px;
+  pointer-events: none;
 }
 .brutal-btn:hover {
+  background: linear-gradient(to bottom, 
+    rgba(255, 255, 255, 0.4) 0%, 
+    rgba(255, 255, 255, 0.1) 48%, 
+    rgba(0, 0, 0, 0) 50%, 
+    rgba(0, 0, 0, 0.1) 100%), 
+    var(--accent-secondary);
   box-shadow:
-    inset 0 1px 0 oklch(from var(--accent) calc(l + 0.35) calc(c * 0.3) h / 0.7),
+    inset 0 1px 2px rgba(255,255,255,0.9),
+    inset 0 -1px 2px rgba(0,0,0,0.1),
     0 6px 14px var(--accent-glow);
   transform: translateY(-1px);
 }
 .brutal-btn:active {
-  transform: translateY(0) scale(0.97);
+  transform: translateY(1px);
+  box-shadow:
+    inset 0 2px 5px rgba(0,0,0,0.2),
+    0 2px 4px var(--accent-glow);
   transition-duration: 80ms;
 }
 .brutal-btn:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--text-heading);
   outline-offset: 2px;
 }
 @media (prefers-reduced-motion: reduce) {
@@ -209,28 +260,55 @@ body {
 }
 
 .brutal-btn-pink {
-  @apply px-5 py-2.5 font-semibold;
-  border: none;
+  @apply px-5 py-2.5 font-bold tracking-wide;
+  border: 1px solid rgba(255, 255, 255, 0.4);
   border-radius: var(--radius-pill);
-  color: var(--selected-text);
-  background: linear-gradient(160deg, oklch(from var(--color-danger) calc(l + 0.12) c h), var(--color-danger) 65%);
+  color: #fff;
+  background: linear-gradient(to bottom, 
+    rgba(255, 255, 255, 0.3) 0%, 
+    rgba(255, 255, 255, 0.05) 48%, 
+    rgba(0, 0, 0, 0.05) 50%, 
+    rgba(0, 0, 0, 0.2) 100%), 
+    var(--color-danger);
   box-shadow:
-    inset 0 1px 0 oklch(from var(--color-danger) calc(l + 0.3) calc(c * 0.3) h / 0.6),
-    0 4px 10px oklch(from var(--color-danger) l c h / 0.35);
-  transition: transform var(--dur-micro) var(--ease-out), box-shadow var(--dur-micro) var(--ease-out);
+    inset 0 1px 1px rgba(255,255,255,0.8),
+    inset 0 -1px 2px rgba(0,0,0,0.1),
+    0 4px 10px rgba(239, 68, 68, 0.4);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  transition: all var(--dur-micro) var(--ease-out);
+  position: relative;
+  overflow: hidden;
+}
+.brutal-btn-pink::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 10%; right: 10%; height: 40%;
+  background: linear-gradient(to bottom, rgba(255,255,255,0.5), transparent);
+  border-radius: 999px;
+  pointer-events: none;
 }
 .brutal-btn-pink:hover {
+  background: linear-gradient(to bottom, 
+    rgba(255, 255, 255, 0.4) 0%, 
+    rgba(255, 255, 255, 0.1) 48%, 
+    rgba(0, 0, 0, 0) 50%, 
+    rgba(0, 0, 0, 0.1) 100%), 
+    var(--color-danger);
   box-shadow:
-    inset 0 1px 0 oklch(from var(--color-danger) calc(l + 0.3) calc(c * 0.3) h / 0.7),
-    0 6px 14px oklch(from var(--color-danger) l c h / 0.45);
+    inset 0 1px 2px rgba(255,255,255,0.9),
+    inset 0 -1px 2px rgba(0,0,0,0.1),
+    0 6px 14px rgba(239, 68, 68, 0.5);
   transform: translateY(-1px);
 }
 .brutal-btn-pink:active {
-  transform: translateY(0) scale(0.97);
+  transform: translateY(1px);
+  box-shadow:
+    inset 0 2px 5px rgba(0,0,0,0.2),
+    0 2px 4px rgba(239, 68, 68, 0.4);
   transition-duration: 80ms;
 }
 .brutal-btn-pink:focus-visible {
-  outline: 2px solid var(--color-danger);
+  outline: 2px solid var(--text-heading);
   outline-offset: 2px;
 }
 @media (prefers-reduced-motion: reduce) {
@@ -244,33 +322,42 @@ body {
 }
 
 .brutal-input {
-  @apply p-2.5 outline-none;
-  border: 1.5px solid var(--border);
+  @apply p-3 outline-none;
+  border: 1px solid var(--border);
+  border-top: 1px solid rgba(0,0,0,0.1);
   border-radius: var(--radius-chip);
   color: var(--text-primary);
-  background-color: var(--input-bg);
-  box-shadow: none;
-  transition: border-color var(--dur-micro) var(--ease-out), box-shadow var(--dur-micro) var(--ease-out);
+  background: var(--input-bg);
+  box-shadow: inset 0 2px 6px rgba(0,0,0,0.15);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: all var(--dur-micro) var(--ease-out);
 }
 .brutal-input:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-glow);
+  box-shadow: inset 0 2px 5px rgba(0,0,0,0.1), 0 0 0 3px var(--accent-glow);
+  background: color-mix(in srgb, var(--input-bg) 70%, rgba(255,255,255,0.3));
 }
 
 .brutal-card {
   @apply p-4;
   border: 1px solid var(--border);
+  border-top: 1px solid rgba(255,255,255,0.4);
   border-radius: var(--radius-panel);
   background-color: var(--bg-card);
-  box-shadow: 0 2px 12px oklch(0% 0 0 / 0.06);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 
+    inset 0 1px 2px rgba(255,255,255,0.2), 
+    0 8px 32px rgba(0, 0, 0, 0.15);
 }
 
-/* ── Nav text-buttons — the scaled-down member of the .brutal-btn press
-   family. No border or shadow to collapse, so the press is the same soft
-   scale-down as every other pressable element in the system, just subtler. ── */
 .nav-term__btn {
   border-radius: var(--radius-pill);
-  transition: color var(--dur-micro) var(--ease-out), background-color var(--dur-micro) var(--ease-out);
+  transition: all var(--dur-micro) var(--ease-out);
+}
+.nav-term__btn:hover {
+  background: rgba(255,255,255,0.1);
 }
 .nav-term__btn:active {
   transform: scale(0.97);
@@ -281,9 +368,6 @@ body {
   }
 }
 
-/* ── Library action buttons — border+text swap to solid fill on hover.
-   Set --btn-c per instance (the button's accent colour) instead of
-   duplicating onMouseEnter/onMouseLeave pairs per button. ── */
 .lib-icon-btn {
   border-color: var(--btn-c);
   border-radius: var(--radius-chip);
@@ -296,106 +380,82 @@ body {
   color: var(--bg);
 }
 
-/* ── Player output bars — the same GPU-only mechanic as .waveform__bars span
-   below: bars are laid out at full height once and their visual height is
-   driven purely by `transform: scaleY()`, never by an animated `height`.
-   `--h` (0..1 scale) and `--o` (rest opacity) are set per-bar from
-   Player.tsx. See design.md § Motion. ── */
-.output-bar {
-  flex: 1;
-  min-width: 0;
-  align-self: stretch;
-  background-color: var(--accent);
-  transform-origin: bottom;
-  transform: scaleY(var(--h));
-  opacity: var(--o);
-  transition:
-    transform var(--dur-long) var(--ease-out),
-    opacity var(--dur-long) var(--ease-out);
-}
 
-/* Generation-complete reveal — the signature motif's second appearance.
-   Applied to the Player's real output bars (not a decorative stand-in) the
-   moment a generation finishes. `backwards` (not `forwards`) so that once the
-   one-shot finishes the bars hand control back to .output-bar's --h/--o,
-   which the play/pause transition then drives. */
-.output-bar--reveal {
-  animation: output-bar-reveal var(--dur-long) var(--ease-out) backwards;
-}
-@keyframes output-bar-reveal {
-  from { transform: scaleY(0);        opacity: 0; }
-  to   { transform: scaleY(var(--h)); opacity: var(--o); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  /* Size change is motion — drop it. The opacity crossfade aids comprehension
-     (playing vs. paused), so it stays, capped at 150ms per design.md. */
-  .output-bar {
-    transition: opacity 150ms linear;
-  }
-  .output-bar--reveal {
-    animation: output-bar-reveal-reduced 150ms linear backwards;
-  }
-  @keyframes output-bar-reveal-reduced {
-    from { opacity: 0; }
-    to   { opacity: var(--o); }
-  }
-}
-
-/* ── Aqua Drift — the one sanctioned ambient motif, Home hero only. See
-   docs/superpowers/specs/2026-08-04-y2k-aqua-redesign-design.md § Signature ambient motif. ── */
+/* ── Aqua Drift — Pure CSS Rotating Waves ── */
+/* Full-bleed: AquaDrift's parent is a `.container`, which Tailwind caps to a
+   max-width and centers -- inset:0 alone would only span that narrower box,
+   leaving gaps at the real screen edges. left/right:50% + negative vw
+   margins break it out to the true viewport width regardless of the
+   parent's own width, while top/bottom:0 still anchor it to the parent's
+   height (the parent has `relative`, so vertical positioning is unaffected). */
 .aqua-drift {
   position: absolute;
-  inset: 0;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  right: 50%;
+  width: 100vw;
+  margin-left: -50vw;
+  margin-right: -50vw;
   overflow: hidden;
   pointer-events: none;
   z-index: 0;
 }
+
 .aqua-drift__bloom {
   position: absolute;
-  filter: blur(22px);
   border-radius: 50%;
-  background: oklch(from var(--accent) l calc(c * 0.9) h);
+  filter: blur(40px);
 }
 .aqua-drift__bloom--a {
-  top: 8%; left: 6%;
-  width: 220px; height: 220px;
-  opacity: 0.35;
-  animation: aqua-drift-bloom-a 10s var(--ease-in-out) infinite;
+  top: -10%; left: 10%;
+  width: 50vw; height: 50vw;
+  max-width: 600px; max-height: 600px;
+  background: radial-gradient(circle, rgba(255,255,255,0.15), transparent 70%);
+  animation: aqua-drift-bloom-a 12s ease-in-out infinite alternate;
 }
 .aqua-drift__bloom--b {
-  bottom: -4%; right: 8%;
-  width: 180px; height: 180px;
-  border-radius: 40% 60% 55% 45% / 50% 45% 55% 50%;
-  opacity: 0.3;
-  animation: aqua-drift-bloom-b 12s var(--ease-in-out) infinite;
+  bottom: 20%; right: 10%;
+  width: 40vw; height: 40vw;
+  max-width: 500px; max-height: 500px;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.4), transparent 70%);
+  animation: aqua-drift-bloom-b 15s ease-in-out infinite alternate;
 }
+
+/* Pure CSS waves using giant rotating rounded rectangles for a stretched, gentle slope */
 .aqua-drift__wave {
   position: absolute;
-  left: -10%;
-  width: 120%;
-  height: 90px;
-  border-radius: 50%;
-  filter: blur(18px);
-  background: oklch(from var(--accent) l calc(c * 0.85) h);
+  left: 50%;
+  width: 500vw;
+  height: 500vw;
+  transform-origin: 50% 50%;
+  border-radius: 46%;
 }
-.aqua-drift__wave--a { top: 20%; opacity: 0.4; animation: aqua-drift-wave-a 12s var(--ease-in-out) infinite; }
-.aqua-drift__wave--b { top: 46%; opacity: 0.32; animation: aqua-drift-wave-b 15s var(--ease-in-out) infinite; }
-.aqua-drift__wave--c { top: 70%; opacity: 0.26; animation: aqua-drift-wave-c 17s var(--ease-in-out) infinite; }
-
-@keyframes aqua-drift-bloom-a { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(14px, -10px); } }
-@keyframes aqua-drift-bloom-b { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(-14px, 10px); } }
-@keyframes aqua-drift-wave-a { 0%, 100% { transform: translateX(-20px); } 50% { transform: translateX(20px); } }
-@keyframes aqua-drift-wave-b { 0%, 100% { transform: translateX(24px); } 50% { transform: translateX(-24px); } }
-@keyframes aqua-drift-wave-c { 0%, 100% { transform: translateX(-14px); } 50% { transform: translateX(14px); } }
-
-@media (prefers-reduced-motion: reduce) {
-  .aqua-drift__bloom, .aqua-drift__wave {
-    animation: none;
-  }
+.aqua-drift__wave--a { 
+  bottom: -475vw; 
+  margin-left: -250vw;
+  background: rgba(255,255,255,0.06);
+  animation: aqua-spin 35s infinite linear;
+}
+.aqua-drift__wave--b { 
+  bottom: -480vw; 
+  margin-left: -250vw;
+  background: rgba(14,165,233,0.1);
+  animation: aqua-spin 45s infinite linear;
+}
+.aqua-drift__wave--c { 
+  bottom: -485vw; 
+  margin-left: -250vw;
+  background: rgba(56,189,248,0.15);
+  animation: aqua-spin 55s infinite linear;
 }
 
-/* ── Waveform — the app's one signature visual. See design.md § Motion. ── */
+@keyframes aqua-drift-bloom-a { 0% { transform: translate(0, 0) scale(1); } 100% { transform: translate(50px, 30px) scale(1.1); } }
+@keyframes aqua-drift-bloom-b { 0% { transform: translate(0, 0) scale(1); } 100% { transform: translate(-50px, -40px) scale(1.05); } }
+@keyframes aqua-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+
+/* ── Waveform ── */
 
 .waveform {
   display: flex;
@@ -412,7 +472,9 @@ body {
 }
 
 .waveform__spectrogram span {
-  background: var(--accent-tertiary);
+  background: var(--accent-secondary);
+  box-shadow: inset 0 1px 1px rgba(255,255,255,0.4);
+  border-radius: 2px;
   min-width: 0;
 }
 
@@ -427,7 +489,10 @@ body {
   flex: 1;
   min-width: 0;
   height: 100%;
-  background: var(--accent);
+  background: linear-gradient(to top, var(--accent-tertiary), var(--accent));
+  box-shadow: inset 0 1px 2px rgba(255,255,255,0.6);
+  border-radius: 6px;
+  border-top: 1px solid rgba(255,255,255,0.8);
   transform-origin: bottom;
 }
 
@@ -436,7 +501,7 @@ body {
 }
 
 @keyframes waveform-bob {
-  from { transform: scaleY(calc(var(--h) * 0.5)); }
+  from { transform: scaleY(calc(var(--h) * 0.4)); }
   to   { transform: scaleY(var(--h)); }
 }
 

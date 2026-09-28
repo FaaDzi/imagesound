@@ -1,0 +1,33 @@
+# Optional: rhythm analysis (tempo + time signature) via Beat This.
+# https://github.com/CPJKU/beat_this
+#
+# Installed into its OWN virtualenv, .venv-beat -- deliberately NOT the main
+# one. beat_this needs torch >= 2.14 while the main environment pins torch
+# 2.1.0+cu121 for Demucs, so installing it alongside would silently upgrade
+# torch underneath the MIDI pipeline. pipeline/beat_track.py therefore calls
+# it as a subprocess, the same pattern the music models use.
+#
+#   python -m venv .venv-beat
+#   .venv-beat\Scripts\python -m pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+#   .venv-beat\Scripts\python -m pip install -r pipeline\requirements-beat.txt
+#
+# CPU torch on purpose: analysis takes under a second per song, and keeping it
+# off the GPU means it can run while a generation is in flight. The model
+# checkpoint (~100 MB) downloads on first use into .torch-cache/ in the
+# project, because pipeline/beat_track.py sets TORCH_HOME before calling.
+#
+# Skipping this is fine. Without it, conversion falls back to librosa, which
+# gives a tempo but cannot track downbeats -- so the time signature is assumed
+# to be 4/4 and the tempo is less reliable (measured 123 BPM on a clip where
+# Beat This, with perfectly consistent bar lengths, said 93.8).
+#
+# NOT chosen: BeatNet, which also reports meter, depends on madmom -- madmom
+# needs Microsoft Visual C++ Build Tools to compile its Cython extensions and
+# will not install on a stock Windows machine.
+
+beat-this>=1.1.0
+tqdm
+einops
+soxr
+rotary-embedding-torch
+soundfile

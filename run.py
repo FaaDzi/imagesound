@@ -1,7 +1,9 @@
-# run.py — dev launcher for ImageSound. Starts backend + frontend together.
-# Press Ctrl+C once to stop both, OR just run `python run.py` again from any
-# terminal — it detects the already-running instance and stops it instead of
-# starting a second one (a start/stop switch). For local testing only.
+# run.py — launcher for ImageSound. Starts backend + frontend together and,
+# by default, a Cloudflare tunnel so the site is reachable publicly (the
+# status page picks up the URL). `python run.py --local` skips the tunnel.
+# Press Ctrl+C once to stop everything, OR just run `python run.py` again from
+# any terminal — it detects the already-running instance and stops it instead
+# of starting a second one (a start/stop switch).
 import json
 import re
 import shutil
@@ -16,6 +18,31 @@ import urllib.error
 import http.client
 from pathlib import Path
 
+# Windows-only: rebuild THIS process's PATH from the registry instead of
+# trusting whatever PATH was inherited from the terminal/session that
+# launched this script. Installing something (Node.js, Python, cloudflared,
+# ...) updates the registry-stored PATH immediately, but any already-running
+# process -- including the terminal this script was started from, and
+# everything descended from a shell opened before the install -- keeps its
+# OLD PATH until a fresh logon/reboot. That silently breaks the frontend's
+# `shell=True` subprocess lookup of `npm` (see start()) with no clearer
+# symptom than "site can't be reached" -- the frontend process just fails to
+# launch. Reading PATH straight from the registry sidesteps the staleness
+# for this process and everything it spawns, without requiring the user to
+# log off. Mirrors the same problem _resolve_cloudflared() already works
+# around for cloudflared specifically; this covers it at the source instead.
+if sys.platform == "win32":
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
+                             r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment") as _key:
+            _machine_path, _ = winreg.QueryValueEx(_key, "Path")
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as _key:
+            _user_path, _ = winreg.QueryValueEx(_key, "Path")
+        os.environ["PATH"] = _machine_path + ";" + _user_path
+    except OSError:
+        pass  # degrade to the inherited PATH if the registry layout is ever different
+
 # Windows-only convenience relaunch: python-dotenv and the backend's other
 # dependencies only live in the project's own .venv. If this script gets
 # invoked with a different Python -- easy to do by accident, since the
@@ -26,13 +53,20 @@ from pathlib import Path
 # python transparently instead of leaving that as a recurring footgun.
 # No-op (falls through) if the venv doesn't exist yet (e.g. a fresh clone
 # before dependencies are installed) or if we're already running under it.
+#
+# Not os.execv: on Windows that spawns a new process and exits this one, so
+# the terminal gets its prompt back while the server is still running and
+# competes with it for keystrokes (Ctrl+C included). Run the venv copy as a
+# child and wait instead. Ctrl+C reaches every process in the console, so
+# this parent ignores it and lets the child run its own shutdown.
 _VENV_PYTHON_PATH = Path(__file__).resolve().parent / ".venv" / "Scripts" / "python.exe"
 if (
     sys.platform == "win32"
     and _VENV_PYTHON_PATH.exists()
     and Path(sys.executable).resolve() != _VENV_PYTHON_PATH.resolve()
 ):
-    os.execv(str(_VENV_PYTHON_PATH), [str(_VENV_PYTHON_PATH), str(Path(__file__).resolve())] + sys.argv[1:])
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    sys.exit(subprocess.call([str(_VENV_PYTHON_PATH), str(Path(__file__).resolve())] + sys.argv[1:]))
 
 # Force line-buffered stdout. Without this, Python block-buffers its own
 # print() output whenever stdout isn't a real interactive console (common
@@ -95,6 +129,12 @@ def _resolve_cloudflared() -> str:
     to cloudflared's well-known winget install location sidesteps that
     stale-PATH trap instead of requiring the user to reopen their terminal.
     """
+    # Preferred: the standalone exe kept inside the project (tools/, not in
+    # git) so nothing is installed on C:. Download it from Cloudflare's GitHub
+    # releases as cloudflared-windows-amd64.exe, renamed to cloudflared.exe.
+    local = Path(__file__).resolve().parent / "tools" / "cloudflared.exe"
+    if local.is_file():
+        return str(local)
     found = shutil.which("cloudflared")
     if found:
         return found
@@ -107,7 +147,7 @@ def _resolve_cloudflared() -> str:
     return "cloudflared"  # not found anywhere; let the OSError path report it
 
 
-TUNNEL_CMD = [_resolve_cloudflared(), "tunnel", "--url", "http://127.0.0.1:3000"]
+TUNNEL_CMD = [_resolve_cloudflared(), "tunnel", "--url", "http://127.0.0.1:4000"]
 # -------------------------------------------------------------
 
 _PIDFILE = Path(__file__).resolve().parent / ".run.pid"
@@ -251,7 +291,7 @@ def _wait_for_frontend_ready(timeout_seconds: float = 45.0) -> bool:
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
         try:
-            with urllib.request.urlopen("http://127.0.0.1:3000/api/health", timeout=2) as resp:
+            with urllib.request.urlopen("http://127.0.0.1:4000/api/health", timeout=2) as resp:
                 body = resp.read().decode("utf-8", errors="replace")
                 if resp.status == 200 and '"status":"ok"' in body.replace(" ", ""):
                     return True
@@ -278,11 +318,108 @@ def _check_tunnel_secret() -> bool:
     return True
 
 
+def _check_default_password() -> bool:
+    """Refuse to tunnel while the seeded login (test/admin1234, hardcoded in
+    backend/app/database.py and so public in the source) still works -- it
+    would let anyone who reads the repo straight in. Returns True if safe."""
+    try:
+        import sqlite3
+        import bcrypt
+    except ImportError:
+        print("[launcher] note: bcrypt not importable here -- skipping the default-password check.")
+        return True
+    db_path = Path(os.environ.get("DATABASE_PATH") or Path(__file__).resolve().parent / "backend" / "app.db")
+    if not db_path.exists():
+        # Fresh install: the backend seeds the default user on first start.
+        print("[launcher] REFUSING to start tunnel: no database yet, so the first start would")
+        print("[launcher] seed the public default login. Run `python run.py --local` once,")
+        print("[launcher] stop it, then run `python scripts/set_password.py`.")
+        return False
+    with sqlite3.connect(db_path) as conn:
+        rows = conn.execute("SELECT password_hash FROM users").fetchall()
+    if any(bcrypt.checkpw(b"admin1234", h.encode()) for (h,) in rows):
+        print("[launcher] REFUSING to start tunnel: the login still uses the default password")
+        print("[launcher] (admin1234), which is written in the public source code. Change it first:")
+        print("[launcher]   python scripts/set_password.py")
+        return False
+    return True
+
+
+# --- Public status page (Option B) ---------------------------------------
+# The quick tunnel's URL changes on every start, so the public status page
+# (a separate GitHub Pages site) can't hardcode it. Instead this publishes
+# the current URL to a GitHub Gist the page reads. Needs GIST_ID and
+# GIST_TOKEN (classic token, `gist` scope only) in .env; without them the
+# tunnel still works, the status page just isn't updated.
+_GIST_FILE = "status.json"
+
+
+def _publish_status(online: bool, url: str | None = None) -> None:
+    gist_id = os.environ.get("GIST_ID", "").strip()
+    token = os.environ.get("GIST_TOKEN", "").strip()
+    if not gist_id or not token:
+        print("[launcher] note: GIST_ID / GIST_TOKEN not set -- public status page not updated.")
+        return
+    status = {"online": online, "url": url, "updated": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+    body = json.dumps({"files": {_GIST_FILE: {"content": json.dumps(status, indent=2)}}}).encode()
+    req = urllib.request.Request(
+        f"https://api.github.com/gists/{gist_id}",
+        data=body,
+        method="PATCH",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "imagesound-run.py",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10):
+            pass
+        print(f"[launcher] status page updated: {'online' if online else 'offline'}")
+    except (urllib.error.URLError, OSError, http.client.HTTPException) as e:
+        # Never let the status page take the server down with it.
+        print(f"[launcher] WARNING: could not update the status gist ({e}).")
+
+
+def _check_ports_free() -> bool:
+    """Refuse to start if something already listens on the backend/frontend
+    ports. A stray server from an earlier session (not in the pidfile, so the
+    stop switch can't see it) once kept port 8000 on 0.0.0.0 while run.py's
+    backend bound 127.0.0.1 alongside it on Windows: requests were split
+    between old and new code, and each backend's one-generation-at-a-time
+    guard only saw its own jobs, so two models could load on the GPU at once."""
+    import socket
+    busy = []
+    for port, name in ((8000, "backend"), (4000, "frontend")):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(0.5)
+            if s.connect_ex(("127.0.0.1", port)) == 0:
+                busy.append((port, name))
+    if not busy:
+        return True
+    for port, name in busy:
+        owner = ""
+        if sys.platform == "win32":
+            try:
+                out = subprocess.check_output(["netstat", "-ano", "-p", "TCP"], text=True, timeout=10)
+                pids = {line.split()[-1] for line in out.splitlines()
+                        if f":{port} " in line and "LISTENING" in line}
+                owner = "  ".join(f"pid {pid}: {_process_cmdline(int(pid))[:120]}" for pid in pids)
+            except Exception:
+                pass
+        print(f"[launcher] REFUSING to start: port {port} ({name}) is already in use. {owner}")
+    print("[launcher] Something from an earlier session is still running. Stop it (Task Manager,")
+    print("[launcher] or `taskkill /F /T /PID <pid>`) and run this again.")
+    return False
+
+
 def stop_all(*_):
     print("\n[launcher] shutting down — killing full process trees to prevent GPU-memory orphans...")
     for name, p in procs:
         _kill_tree(p, name)
     _remove_pidfile()
+    if any(name == "tunnel" for name, _ in procs):
+        _publish_status(False)
     sys.exit(0)
 
 
@@ -367,11 +504,17 @@ def _try_stop_previous_instance() -> bool:
             stopped_any = True
 
     _remove_pidfile()
+    # taskkill /F gives the other run.py no chance to run its own shutdown,
+    # so mark the status page offline from here instead.
+    if stopped_any and "tunnel" in recorded:
+        _publish_status(False)
     return stopped_any
 
 
 if __name__ == "__main__":
-    TUNNEL_MODE = "--tunnel" in sys.argv
+    # Public by default: the tunnel was too easy to forget. `--local` keeps it
+    # on this machine only. `--tunnel` is still accepted (it's the default now).
+    TUNNEL_MODE = "--local" not in sys.argv
 
     # The stop-switch must always take priority over any flag-specific gating
     # (e.g. the tunnel secret check below) -- running this script again to
@@ -381,12 +524,19 @@ if __name__ == "__main__":
         print("[launcher] previous instance stopped. Run again to start it back up.")
         sys.exit(0)
 
-    if TUNNEL_MODE and not _check_tunnel_secret():
+    if not _check_ports_free():
         sys.exit(1)
+
+    # Never go public with a forgeable session or the public default login --
+    # but don't block local use over it either: fall back to local-only.
+    if TUNNEL_MODE and not (_check_tunnel_secret() and _check_default_password()):
+        print("[launcher] starting LOCAL ONLY (no public link) until that's fixed.")
+        TUNNEL_MODE = False
 
     signal.signal(signal.SIGINT, stop_all)
     signal.signal(signal.SIGTERM, stop_all)
-    start("backend", BACKEND_CMD)
+    # Public HTTPS via the tunnel -> mark the session cookie Secure (see main.py).
+    start("backend", BACKEND_CMD, env={"SESSION_HTTPS_ONLY": "1"} if TUNNEL_MODE else None)
     frontend_env = {
         "VITE_API_BASE": "/api",
     } if TUNNEL_MODE else None
@@ -402,10 +552,12 @@ if __name__ == "__main__":
                 start_tunnel()
                 # Re-write the pidfile so it also includes the tunnel entry.
                 _write_pidfile()
+                if _tunnel_url["value"]:
+                    _publish_status(True, _tunnel_url["value"])
             except OSError as e:
                 print(f"[launcher] WARNING: could not start cloudflared ({e}). Backend/frontend are "
-                      "still running locally on :8000/:3000. If cloudflared was just installed, open "
-                      "a NEW terminal (PATH needs refreshing) and try 'python run.py --tunnel' again "
+                      "still running locally on :8000/:4000. If cloudflared was just installed, open "
+                      "a NEW terminal (PATH needs refreshing) and try 'python run.py' again "
                       "after stopping this instance with 'python run.py'.")
         else:
             print("[launcher] WARNING: frontend did not become healthy within 45s -- skipping "
@@ -420,7 +572,17 @@ if __name__ == "__main__":
         print("=" * 60)
         print(f"  Public URL: {_tunnel_url['value']}")
         print("=" * 60)
+    elif TUNNEL_MODE:
+        # The reason was printed further up, but easily lost in the startup
+        # noise -- repeat the outcome last so it can't be missed.
+        print()
+        print("=" * 60)
+        print("  NO PUBLIC LINK -- the tunnel didn't start (see the WARNING above).")
+        print("  Running on this machine only; the status page still says offline.")
+        print("=" * 60)
     # wait for either to exit
     for name, p in procs:
         p.wait()
     _remove_pidfile()
+    if TUNNEL_MODE and _tunnel_url["value"]:
+        _publish_status(False)

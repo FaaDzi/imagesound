@@ -1,0 +1,403 @@
+{
+  "default": "ace-step-turbo",
+  "models": [
+    {
+      "id": "ace-step-turbo",
+      "label": "ACE-Step Turbo",
+      "tier": "small",
+      "description": "Fast diffusion model. A full song in tens of seconds; can also remix an existing song.",
+      "prompt_style": "ace-step",
+      "quality_scoring": false,
+      "worker": {
+        "python": "third_party/ACE-Step-1.5/.venv/Scripts/python.exe",
+        "script": "pipeline/workers/ace_step_worker.py",
+        "cwd": "third_party/ACE-Step-1.5",
+        "env": {
+          "ACESTEP_CHECKPOINTS_DIR": "models/ace-step",
+          "HF_HOME": ".hf-cache"
+        },
+        "timeout_sec": 1800,
+        "args": {
+          "project_root": "third_party/ACE-Step-1.5",
+          "dit": "acestep-v15-turbo",
+          "steps": 8,
+          "shift": 3.0,
+          "offload_to_cpu": true,
+          "offload_dit_to_cpu": true,
+          "quantization": "int8_weight_only",
+          "use_lm": false,
+          "velocity_norm_threshold": 2.0,
+          "velocity_ema_factor": 0.1,
+          "tail_pad_sec": 3.0,
+          "fade_out_sec": 0.75
+        }
+      },
+      "requires": [
+        "models/ace-step/acestep-v15-turbo/model.safetensors",
+        "models/ace-step/vae/diffusion_pytorch_model.safetensors",
+        "models/ace-step/Qwen3-Embedding-0.6B/model.safetensors"
+      ],
+      "capabilities": {
+        "duration": {
+          "min": 10,
+          "max": 180,
+          "default": 30
+        },
+        "reference": [
+          "cover",
+          "style"
+        ]
+      },
+      "options": [
+        {
+          "key": "vocals",
+          "label": "Vocals",
+          "type": "choice",
+          "choices": [
+            "off",
+            "lyrics",
+            "chops"
+          ],
+          "default": "off",
+          "help": "Vocals can be hit or miss: each run is a new roll, so regenerate if a chorus comes out messy.",
+          "choice_help": {
+            "off": "Instrumental.",
+            "lyrics": "A lead singer. Lyrics are drafted from the image or description and can be edited before generating.",
+            "chops": "Wordless 'aa / oh' vocal layer, kept quiet in the background. Suits atmospheric tracks."
+          }
+        },
+        {
+          "key": "vocal_language",
+          "label": "Lyrics language",
+          "type": "choice",
+          "choices": [
+            "ja",
+            "en",
+            "ko",
+            "zh"
+          ],
+          "default": "ja",
+          "when_option": {
+            "vocals": [
+              "lyrics"
+            ]
+          },
+          "choice_help": {
+            "ja": "Japanese, written in romaji. The tested one: gives the Vocaloid feel.",
+            "en": "English: longer, conversational lines that rhyme. Tested on rock and EDM.",
+            "ko": "Korean. Not tested yet.",
+            "zh": "Mandarin Chinese. Not tested yet."
+          },
+          "locked_choices": {
+            "ko": "Locked until tested. Each language needs its own listening tests -- phrasing, line length and how the melody fits the words all change with it, not just the words.",
+            "zh": "Locked until tested. Each language needs its own listening tests -- phrasing, line length and how the melody fits the words all change with it, not just the words."
+          },
+          "help": "Japanese and English are tested; Korean and Mandarin unlock once they have been."
+        },
+        {
+          "key": "voice",
+          "label": "Voice",
+          "type": "choice",
+          "choices": [
+            "auto",
+            "female",
+            "male",
+            "duet"
+          ],
+          "default": "auto",
+          "when_option": {
+            "vocals": [
+              "lyrics"
+            ]
+          },
+          "choice_help": {
+            "auto": "Picked from the genre: male for rock, punk, metal, hip hop, country and blues; female for J-pop, anime and similar; either otherwise.",
+            "female": "The tested voice: a bright, Vocaloid-style female lead.",
+            "male": "A deep male lead. Tested on J-pop; one take in a few may still sit high.",
+            "duet": "Male and female together: he takes the verses, she takes the pre-chorus, both sing the chorus."
+          },
+          "help": "There are no voice models: the voice is described to the model in words, so each run varies a little."
+        },
+        {
+          "key": "vocal_tone",
+          "label": "Vocal tone",
+          "type": "choice",
+          "choices": [
+            "default",
+            "bright",
+            "breathy",
+            "raspy",
+            "soft",
+            "falsetto"
+          ],
+          "default": "default",
+          "admin_only": true,
+          "when_option": {
+            "vocals": [
+              "lyrics"
+            ]
+          },
+          "help": "For listening tests: one extra tone word for the singer. None of these is tested yet."
+        },
+        {
+          "key": "structure",
+          "label": "Song structure",
+          "type": "choice",
+          "choices": [
+            "off",
+            "simple",
+            "full"
+          ],
+          "default": "off",
+          "help": "Describes how the piece should develop instead of sending one flat tag. Vocal songs get their structure from the lyrics.",
+          "choice_help": {
+            "off": "The model picks its own shape. On long tracks that usually means a loop with no real intro or ending.",
+            "simple": "Intro, main theme, outro.",
+            "full": "Intro, theme, build, climax, breakdown, outro. Sections drop automatically if the song is too short."
+          },
+          "when_option": {
+            "vocals": [
+              "off"
+            ]
+          }
+        },
+        {
+          "key": "cover_strength",
+          "label": "Remix strength",
+          "type": "number",
+          "min": 0.3,
+          "max": 0.7,
+          "step": 0.05,
+          "default": 0.5,
+          "when_reference_mode": "cover",
+          "help": "How much of the original song to keep. 0.3-0.5 for a different genre, 0.5-0.7 to restyle it. Capped at 0.7: above that the original's structure dominates and a new style comes out choppy."
+        },
+        {
+          "key": "sampler_mode",
+          "label": "Solver",
+          "type": "choice",
+          "choices": [
+            "euler",
+            "heun"
+          ],
+          "default": "euler",
+          "help": "The difference is small and shows most on dense electronic material.",
+          "choice_help": {
+            "euler": "ACE-Step's default. Steadier levels, but the likelier of the two to crackle on busy, distorted material.",
+            "heun": "Adds a correction step. Fewer crackle artifacts on dense material at no extra time, but showed more abrupt level drops."
+          }
+        },
+        {
+          "key": "bpm",
+          "label": "Lock BPM",
+          "type": "number",
+          "min": 0,
+          "max": 200,
+          "step": 1,
+          "default": 0,
+          "help": "0 = the model picks, and its choice drifts over the song. Set a value to pin the grid. Vocal songs always get a locked tempo: drafting lyrics suggests one here, and 0 picks one from the style. Guide: 70-90 lo-fi, 100-115 hip hop, 120-130 house, 140-150 phonk, 150-175 DnB."
+        }
+      ]
+    },
+    {
+      "id": "ace-step-sft",
+      "label": "ACE-Step SFT",
+      "tier": "medium",
+      "description": "Higher-quality variant: 50 diffusion steps for richer detail. Slower than Turbo.",
+      "prompt_style": "ace-step",
+      "quality_scoring": false,
+      "worker": {
+        "python": "third_party/ACE-Step-1.5/.venv/Scripts/python.exe",
+        "script": "pipeline/workers/ace_step_worker.py",
+        "cwd": "third_party/ACE-Step-1.5",
+        "env": {
+          "ACESTEP_CHECKPOINTS_DIR": "models/ace-step",
+          "HF_HOME": ".hf-cache"
+        },
+        "timeout_sec": 2400,
+        "args": {
+          "project_root": "third_party/ACE-Step-1.5",
+          "dit": "acestep-v15-sft",
+          "steps": 50,
+          "shift": 1.0,
+          "offload_to_cpu": true,
+          "offload_dit_to_cpu": true,
+          "quantization": "int8_weight_only",
+          "use_lm": "lyrics",
+          "lm_model": "acestep-5Hz-lm-0.6B",
+          "lm_backend": "pt",
+          "guidance_scale": 5.5,
+          "velocity_norm_threshold": 2.0,
+          "tail_pad_sec": 3.0,
+          "fade_out_sec": 0.75
+        }
+      },
+      "requires": [
+        "models/ace-step/acestep-v15-sft/model.safetensors",
+        "models/ace-step/vae/diffusion_pytorch_model.safetensors",
+        "models/ace-step/Qwen3-Embedding-0.6B/model.safetensors"
+      ],
+      "capabilities": {
+        "duration": {
+          "min": 10,
+          "max": 180,
+          "default": 30
+        },
+        "reference": [
+          "cover",
+          "style"
+        ]
+      },
+      "options": [
+        {
+          "key": "vocals",
+          "label": "Vocals",
+          "type": "choice",
+          "choices": [
+            "off",
+            "lyrics",
+            "chops"
+          ],
+          "default": "off",
+          "help": "Vocals can be hit or miss: each run is a new roll, so regenerate if a chorus comes out messy.",
+          "choice_help": {
+            "off": "Instrumental.",
+            "lyrics": "A lead singer. Lyrics are drafted from the image or description and can be edited before generating.",
+            "chops": "Wordless 'aa / oh' vocal layer, kept quiet in the background. Suits atmospheric tracks."
+          }
+        },
+        {
+          "key": "vocal_language",
+          "label": "Lyrics language",
+          "type": "choice",
+          "choices": [
+            "ja",
+            "en",
+            "ko",
+            "zh"
+          ],
+          "default": "ja",
+          "when_option": {
+            "vocals": [
+              "lyrics"
+            ]
+          },
+          "choice_help": {
+            "ja": "Japanese, written in romaji. The tested one: gives the Vocaloid feel.",
+            "en": "English: longer, conversational lines that rhyme. Tested on rock and EDM.",
+            "ko": "Korean. Not tested yet.",
+            "zh": "Mandarin Chinese. Not tested yet."
+          },
+          "locked_choices": {
+            "ko": "Locked until tested. Each language needs its own listening tests -- phrasing, line length and how the melody fits the words all change with it, not just the words.",
+            "zh": "Locked until tested. Each language needs its own listening tests -- phrasing, line length and how the melody fits the words all change with it, not just the words."
+          },
+          "help": "Japanese and English are tested; Korean and Mandarin unlock once they have been."
+        },
+        {
+          "key": "voice",
+          "label": "Voice",
+          "type": "choice",
+          "choices": [
+            "auto",
+            "female",
+            "male",
+            "duet"
+          ],
+          "default": "auto",
+          "when_option": {
+            "vocals": [
+              "lyrics"
+            ]
+          },
+          "choice_help": {
+            "auto": "Picked from the genre: male for rock, punk, metal, hip hop, country and blues; female for J-pop, anime and similar; either otherwise.",
+            "female": "The tested voice: a bright, Vocaloid-style female lead.",
+            "male": "A deep male lead. Tested on J-pop; one take in a few may still sit high.",
+            "duet": "Male and female together: he takes the verses, she takes the pre-chorus, both sing the chorus."
+          },
+          "help": "There are no voice models: the voice is described to the model in words, so each run varies a little."
+        },
+        {
+          "key": "vocal_tone",
+          "label": "Vocal tone",
+          "type": "choice",
+          "choices": [
+            "default",
+            "bright",
+            "breathy",
+            "raspy",
+            "soft",
+            "falsetto"
+          ],
+          "default": "default",
+          "admin_only": true,
+          "when_option": {
+            "vocals": [
+              "lyrics"
+            ]
+          },
+          "help": "For listening tests: one extra tone word for the singer. None of these is tested yet."
+        },
+        {
+          "key": "structure",
+          "label": "Song structure",
+          "type": "choice",
+          "choices": [
+            "off",
+            "simple",
+            "full"
+          ],
+          "default": "off",
+          "help": "Describes how the piece should develop instead of sending one flat tag. Vocal songs get their structure from the lyrics.",
+          "choice_help": {
+            "off": "The model picks its own shape. On long tracks that usually means a loop with no real intro or ending.",
+            "simple": "Intro, main theme, outro.",
+            "full": "Intro, theme, build, climax, breakdown, outro. Sections drop automatically if the song is too short."
+          },
+          "when_option": {
+            "vocals": [
+              "off"
+            ]
+          }
+        },
+        {
+          "key": "cover_strength",
+          "label": "Remix strength",
+          "type": "number",
+          "min": 0.3,
+          "max": 0.7,
+          "step": 0.05,
+          "default": 0.5,
+          "when_reference_mode": "cover",
+          "help": "How much of the original song to keep. 0.3-0.5 for a different genre, 0.5-0.7 to restyle it. Capped at 0.7: above that the original's structure dominates and a new style comes out choppy."
+        },
+        {
+          "key": "sampler_mode",
+          "label": "Solver",
+          "type": "choice",
+          "choices": [
+            "euler",
+            "heun"
+          ],
+          "default": "euler",
+          "help": "The difference is small and shows most on dense electronic material.",
+          "choice_help": {
+            "euler": "ACE-Step's default. Steadier levels, but the likelier of the two to crackle on busy, distorted material.",
+            "heun": "Adds a correction step. Fewer crackle artifacts on dense material at no extra time, but showed more abrupt level drops."
+          }
+        },
+        {
+          "key": "bpm",
+          "label": "Lock BPM",
+          "type": "number",
+          "min": 0,
+          "max": 200,
+          "step": 1,
+          "default": 0,
+          "help": "0 = the model picks, and its choice drifts over the song. Set a value to pin the grid. Vocal songs always get a locked tempo: drafting lyrics suggests one here, and 0 picks one from the style. Guide: 70-90 lo-fi, 100-115 hip hop, 120-130 house, 140-150 phonk, 150-175 DnB."
+        }
+      ]
+    }
+  ]
+}

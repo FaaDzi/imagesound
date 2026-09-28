@@ -1,6 +1,6 @@
 {
   "name": "Imagesound",
-  "description": "FastAPI + React app that turns an image, text prompt, or audio clip into an AI-generated song using Gemini and Meta's MusicGen.",
+  "description": "FastAPI + React app that turns an image, text prompt, or audio clip into an AI-generated song using Gemini and a pluggable set of open music-generation models (currently ACE-Step).",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

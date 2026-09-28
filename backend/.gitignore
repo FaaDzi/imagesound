@@ -9,6 +9,7 @@
 storage/originals/*
 storage/converted/*
 storage/temp/*
+storage/midi/*
 !storage/originals/.gitkeep
 !storage/converted/.gitkeep
 !storage/temp/.gitkeep

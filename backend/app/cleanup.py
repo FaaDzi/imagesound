@@ -12,7 +12,7 @@ import time
 from datetime import datetime, timezone
 
 from app.config import DIR_CONVERTED, DIR_MIDI, DIR_ORIGINALS
-from app.database import get_connection
+from app.database import get_connection, original_in_use
 
 log = logging.getLogger(__name__)
 
@@ -37,10 +37,11 @@ def run_cleanup() -> None:
 
         for row in rows:
             converted_dir = DIR_MIDI if row["output_format"] == "midi" else DIR_CONVERTED
-            paths_to_delete = [
-                (DIR_ORIGINALS, row["original_key"]),
-                (converted_dir, row["converted_key"]),
-            ]
+            paths_to_delete = [(converted_dir, row["converted_key"])]
+            # An upload shared with a saved song (same image, generated again)
+            # must outlive this row.
+            if row["original_key"] and not original_in_use(conn, row["original_key"], row["id"]):
+                paths_to_delete.append((DIR_ORIGINALS, row["original_key"]))
             for directory, key in paths_to_delete:
                 if key:
                     path = directory / key
@@ -50,13 +51,14 @@ def run_cleanup() -> None:
                     except Exception:
                         log.exception("[cleanup] Could not delete %s", path)
 
-            # MIDI entries also have a sonified preview WAV.
+            # MIDI entries also have derived files, all named "{id}_...": the
+            # preview, the lead-sheet .mid and its preview, per-part previews.
             if row["output_format"] == "midi":
-                preview = DIR_MIDI / f"{row['id']}_preview.wav"
-                try:
-                    preview.unlink(missing_ok=True)
-                except Exception:
-                    log.exception("[cleanup] Could not delete %s", preview)
+                for derived in DIR_MIDI.glob(f"{row['id']}_*"):
+                    try:
+                        derived.unlink(missing_ok=True)
+                    except Exception:
+                        log.exception("[cleanup] Could not delete %s", derived)
 
             conn.execute("DELETE FROM files WHERE id=?", (row["id"],))
 

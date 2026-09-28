@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Sun, Moon, LogIn, LogOut, Circle } from 'lucide-react';
+import { Sun, Moon, LogIn, LogOut, Shapes } from 'lucide-react';
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
 
@@ -31,10 +31,13 @@ export function Navigation({ theme, setTheme, physicsOn, setPhysicsOn }: {
       className="px-4 md:px-8 py-3 sticky top-0 z-50"
       style={{ backgroundColor: 'var(--bg)', borderBottom: '1px solid var(--border)' }}
     >
-      <nav className="m-0 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-sm md:text-base">
+      {/* One row on a phone: it used to wrap to two. The wordmark and the
+          username give way below `sm` -- "upload" goes home anyway, and the
+          log-out button keeps its icon and label for screen readers. */}
+      <nav className="m-0 flex flex-nowrap sm:flex-wrap items-center gap-x-1 sm:gap-x-2 gap-y-1.5 text-sm md:text-base">
         <Link
           to="/"
-          className="glitch font-bold tracking-widest uppercase mr-2"
+          className="glitch font-bold tracking-widest uppercase mr-2 hidden sm:inline"
           data-text="imagesound"
           style={{ color: 'var(--text-heading)' }}
         >
@@ -47,7 +50,7 @@ export function Navigation({ theme, setTheme, physicsOn, setPhysicsOn }: {
             <Link
               key={r.path}
               to={r.path}
-              className="nav-term__btn px-3 py-1.5"
+              className="nav-term__btn px-2.5 sm:px-3 py-1.5"
               style={{
                 color: active ? 'var(--selected-text)' : 'var(--text-muted)',
                 backgroundColor: active ? 'var(--accent)' : 'transparent',
@@ -78,10 +81,10 @@ export function Navigation({ theme, setTheme, physicsOn, setPhysicsOn }: {
           style={{ color: physicsOn ? 'var(--accent)' : 'var(--text-muted)' }}
           onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent)'; }}
           onMouseLeave={e => { if (!physicsOn) e.currentTarget.style.color = 'var(--text-muted)'; }}
-          aria-label={`physics: ${physicsOn ? 'on' : 'off'}, toggle physics ball toy`}
-          title="Toggle physics ball toy"
+          aria-label={`physics toy: ${physicsOn ? 'on' : 'off'}, toggle`}
+          title="Physics toy: shapes you can throw around"
         >
-          <Circle size={14} />
+          <Shapes size={14} />
         </button>
 
         <span className="flex-grow" />
@@ -94,9 +97,9 @@ export function Navigation({ theme, setTheme, physicsOn, setPhysicsOn }: {
             onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent)'; }}
             onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; }}
             aria-label={`user: ${username}, log out`}
-            title="Log out"
+            title={`Log out ${username}`}
           >
-            {username}
+            <span className="hidden sm:inline">{username}</span>
             <LogOut size={14} />
           </button>
         ) : (

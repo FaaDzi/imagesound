@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, File, Request, UploadFile
 from fastapi.responses import JSONResponse
 
+from app.access import current_user
 from app.config import RATE_LIMIT_UPLOAD
 from app.database import get_connection
 from app.limiter import limiter
@@ -33,9 +34,9 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
                 (id, owner_id, input_type, original_key, converted_key,
                  prompt, output_format, duration, job_status, created_at, expires_at)
             VALUES
-                (?, NULL, ?, ?, NULL, NULL, NULL, NULL, 'queued', ?, ?)
+                (?, ?, ?, ?, NULL, NULL, NULL, NULL, 'queued', ?, ?)
             """,
-            (file_id, input_type, original_key, now.isoformat(), expires_at.isoformat()),
+            (file_id, current_user(request)["id"], input_type, original_key, now.isoformat(), expires_at.isoformat()),
         )
         conn.commit()
 

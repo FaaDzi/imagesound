@@ -49,7 +49,7 @@ export function GeneratePanel({
           [ GENERATE_SONG ]
         </h4>
         {generation.jobId && (
-          <span className="text-[10px] font-mono opacity-40" style={{ color: 'var(--accent)' }}>
+          <span className="text-[11px] font-mono opacity-40" style={{ color: 'var(--accent)' }}>
             JOB:{generation.jobId.slice(0, 8)}
           </span>
         )}
@@ -87,17 +87,29 @@ export function GeneratePanel({
               );
             })}
           </div>
-          <p className="text-[10px] font-mono uppercase opacity-50" style={{ color: 'var(--accent)' }}>
+          <p className="text-[11px] font-mono uppercase opacity-50" style={{ color: 'var(--accent)' }}>
             {generation.phase === 'processing'
               ? (generation.progress != null
                   ? `// SYNTHESIZING — ${Math.round(generation.progress * 100)}%`
-                  : '// MUSICGEN SYNTHESIZING — APPROX 15-30s')
+                  : '// SYNTHESIZING...')
               : generation.phase === 'loading_model'
-              ? '// WARMING UP GPU — FIRST RUN TAKES ~15s'
+              ? '// WARMING UP GPU — LOADING THE MODEL'
               : generation.queueDepth != null && generation.queueDepth > 1
               ? `// ${generation.queueDepth} JOBS IN QUEUE — WILL START WHEN WORKER IS FREE`
               : '// NEXT IN QUEUE — STARTING SOON'}
           </p>
+          <p className="text-[11px] font-mono" style={{ color: 'var(--text-muted)' }}>
+            Runs on the server: you can leave this page or lock your phone, and it picks up here when you come back.
+          </p>
+          {generation.warning && (
+            <p
+              className="flex items-start gap-2 text-[11px] font-mono uppercase"
+              style={{ color: 'var(--color-warning)', opacity: 0.9 }}
+            >
+              <AlertTriangle size={12} className="shrink-0 mt-[1px]" aria-hidden="true" />
+              <span>{generation.warning}</span>
+            </p>
+          )}
           <button
             onClick={onCancel}
             className="brutal-btn brutal-btn-pink w-full flex items-center justify-center gap-2"
@@ -128,7 +140,7 @@ export function GeneratePanel({
           ) : (
             <>
               <p
-                className="flex items-start gap-2 text-[10px] font-mono uppercase"
+                className="flex items-start gap-2 text-[11px] font-mono uppercase"
                 style={{ color: 'var(--color-warning)', opacity: 0.9 }}
               >
                 <AlertTriangle size={12} className="shrink-0 mt-[1px]" aria-hidden="true" />
@@ -157,7 +169,6 @@ export function GeneratePanel({
                     <button
                       onClick={onDiscardCancel}
                       className="brutal-btn flex-1 flex items-center justify-center gap-1 text-xs"
-                      style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
                     >
                       CANCEL
                     </button>
@@ -169,7 +180,6 @@ export function GeneratePanel({
                     onClick={onSave}
                     disabled={isSaving || isDiscarding}
                     className="brutal-btn flex-1 flex items-center justify-center gap-2 disabled:opacity-40"
-                    style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
                   >
                     {isSaving ? <span className="animate-pulse">SAVING...</span> : <><Save size={14} /> SAVE</>}
                   </button>
@@ -195,14 +205,14 @@ export function GeneratePanel({
               >
                 // APPLYING EFFECTS...
               </div>
-              <p className="text-[10px] font-mono uppercase text-center" style={{ color: 'var(--accent-secondary)', opacity: 0.5 }}>
+              <p className="text-[11px] font-mono uppercase text-center" style={{ color: 'var(--accent-secondary)', opacity: 0.5 }}>
                 // BROWSER RENDERING — EFFECTS BAKING IN
               </p>
             </div>
           ) : showFormatPicker ? (
             <div className="flex flex-col gap-1 border p-2" style={{ borderColor: 'var(--accent)' }}>
               <div className="flex items-center justify-between mb-1">
-                <span className="text-[9px] font-mono uppercase tracking-widest" style={{ color: 'var(--accent)', opacity: 0.6 }}>
+                <span className="text-[10px] font-mono uppercase tracking-widest" style={{ color: 'var(--accent)', opacity: 0.6 }}>
                   {effectsAreNeutral(effects.params) ? 'CHOOSE FORMAT' : 'CHOOSE FORMAT · EFFECTS ACTIVE'}
                 </span>
                 <button
@@ -231,7 +241,7 @@ export function GeneratePanel({
                         await effects.renderAndDownload(generation.jobId, generation.result?.prompt, f);
                       }
                     }}
-                    className="flex-1 border py-1.5 text-[9px] font-bold uppercase tracking-wide transition-colors"
+                    className="flex-1 border py-1.5 text-[10px] font-bold uppercase tracking-wide transition-colors"
                     style={{
                       borderColor: 'var(--accent)',
                       backgroundColor: downloadFormat === f ? 'var(--accent)' : 'transparent',
@@ -269,6 +279,13 @@ export function GeneratePanel({
           <p className="text-xs font-mono uppercase" style={{ color: 'var(--color-danger)' }}>
             ERROR: {generation.error ?? 'Unknown error.'}
           </p>
+          {/* Only the admin is ever sent busyJobId, so this is the admin's
+              "take the GPU back" button. */}
+          {generation.busyJobId && (
+            <button onClick={() => { void generation.takeOver(); }} className="brutal-btn w-full flex items-center justify-center gap-2">
+              <X size={16} /> STOP THEIR GENERATION &amp; START MINE
+            </button>
+          )}
           <button onClick={onGenerate} className="brutal-btn w-full brutal-btn-pink flex items-center justify-center gap-2">
             <Zap size={16} /> RETRY
           </button>
@@ -277,14 +294,23 @@ export function GeneratePanel({
 
       {/* IDLE */}
       {generation.phase === 'idle' && (
-        <button
-          onClick={onGenerate}
-          disabled={generateDisabled}
-          title={generateDisabled ? generateDisabledTitle : undefined}
-          className="brutal-btn w-full flex items-center justify-center gap-2 disabled:opacity-30"
-        >
-          <Zap size={16} /> GENERATE SONG
-        </button>
+        <>
+          <button
+            onClick={onGenerate}
+            disabled={generateDisabled}
+            title={generateDisabled ? generateDisabledTitle : undefined}
+            className="brutal-btn w-full flex items-center justify-center gap-2 disabled:opacity-30"
+          >
+            <Zap size={16} /> GENERATE SONG
+          </button>
+          {/* Said, not just hovered: a greyed-out button with the reason only in
+              a tooltip explains nothing on a phone. */}
+          {generateDisabled && generateDisabledTitle && (
+            <p className="text-[11px] font-mono mt-2 text-center" style={{ color: 'var(--text-muted)' }}>
+              {generateDisabledTitle}
+            </p>
+          )}
+        </>
       )}
     </div>
   );

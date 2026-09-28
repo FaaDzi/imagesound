@@ -1,8 +1,10 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from 'react';
-import { getMe, loginRequest, logoutRequest } from '../api';
+import { getMe, loginRequest, logoutRequest, MeResult } from '../api';
 
 interface AuthContextValue {
   username: string | null;
+  role: MeResult['role'] | null;  // 'admin' sees everything; 'user' is the shared public account
+  isAdmin: boolean;
   loading: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -11,7 +13,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [username, setUsername] = useState<string | null>(null);
+  const [me, setMe] = useState<MeResult | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Bumped by every explicit login()/logout(). The background mount-check
@@ -26,25 +28,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const myGen = authGenRef.current;
     getMe()
-      .then(res => { if (authGenRef.current === myGen) setUsername(res.username); })
-      .catch(() => { if (authGenRef.current === myGen) setUsername(null); })
+      .then(res => { if (authGenRef.current === myGen) setMe(res); })
+      .catch(() => { if (authGenRef.current === myGen) setMe(null); })
       .finally(() => setLoading(false));
   }, []);
 
   const login = useCallback(async (u: string, p: string) => {
     const res = await loginRequest(u, p);
     authGenRef.current += 1;
-    setUsername(res.username);
+    setMe(res);
   }, []);
 
   const logout = useCallback(async () => {
     await logoutRequest();
     authGenRef.current += 1;
-    setUsername(null);
+    setMe(null);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ username, loading, login, logout }}>
+    <AuthContext.Provider value={{
+      username: me?.username ?? null,
+      role: me?.role ?? null,
+      isAdmin: me?.role === 'admin',
+      loading, login, logout,
+    }}>
       {children}
     </AuthContext.Provider>
   );

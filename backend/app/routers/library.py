@@ -8,7 +8,9 @@ shows the saved/temporary distinction via the `saved` and `expires_at` fields.
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
+
+from app.access import owner_filter
 
 from app.database import get_connection
 
@@ -16,17 +18,18 @@ router = APIRouter()
 
 
 @router.get("/library")
-def get_library():
+def get_library(request: Request):
+    clause, params = owner_filter(request)
     now_iso = datetime.now(timezone.utc).isoformat()
     with get_connection() as conn:
         rows = conn.execute(
             """SELECT id, input_type, prompt, duration, saved, expires_at, created_at,
-                      output_format, source_file_id, fad_verdict
+                      output_format, source_file_id, fad_verdict, model_id
                  FROM files
                 WHERE job_status = 'done'
-                  AND expires_at > ?
+                  AND expires_at > ?""" + clause + """
                 ORDER BY created_at DESC""",
-            (now_iso,),
+            (now_iso, *params),
         ).fetchall()
 
     return [
@@ -41,6 +44,7 @@ def get_library():
             "output_format":  row["output_format"],
             "source_file_id": row["source_file_id"],
             "fad_verdict":    row["fad_verdict"],
+            "model_id":       row["model_id"],
         }
         for row in rows
     ]

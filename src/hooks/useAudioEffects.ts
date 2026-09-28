@@ -1,9 +1,11 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 import type { RefObject } from 'react';
-import { audioUrl, API_BASE } from '../api';
+import { apiFetch, audioUrl, API_BASE } from '../api';
 import type { DownloadFormat } from '../api';
 import { generateIRData, createIRBuffer, encodeWav, triggerDownload } from '../utils/audioUtils';
 import type { IRData } from '../utils/audioUtils';
+import { analyseSpectrum } from '../utils/audioAnalysis';
+import { targetForPrompt, autoEqFor } from '../utils/autoEq';
 
 // ── Effect parameter shape ────────────────────────────────────────────────────
 
@@ -26,6 +28,45 @@ export const DEFAULT_EFFECTS: EffectParams = {
   compRatio:     1,
   reverbMix:     0,
 };
+
+// One-click presets. The frequencies come from measuring generated tracks: the
+// 8-14 kHz band carried 17.1% of a buzzy drift phonk's magnitude against
+// 3.1-9.5% for three tracks that sound fine, which is what the high shelf
+// targets. The mid band sits at 3.2 kHz, the ear's most sensitive region and
+// where a peak-vs-baseline scan found every track's loudest resonance — note
+// that scan did NOT separate the buzzy track from the clean ones (+6.1 dB
+// against +5.0 to +8.1 dB), so the mid control is a general bite control, not
+// a fix for a defect specific to this model.
+export interface EffectPreset {
+  id: string; label: string; help: string; params: EffectParams;
+}
+
+export const EFFECT_PRESETS: EffectPreset[] = [
+  {
+    id: 'raw',
+    label: 'RAW',
+    help: 'Model output, untouched.',
+    params: DEFAULT_EFFECTS,
+  },
+  {
+    id: 'debuzz',
+    label: 'DE-BUZZ',
+    help: 'Pulls down the 3 kHz bite and the 8 kHz+ hash that reads as buzzing.',
+    params: { ...DEFAULT_EFFECTS, eqMid: -5, eqHigh: -5 },
+  },
+  {
+    id: 'soften',
+    label: 'SOFTEN',
+    help: 'Rolls the whole top end back, for tracks that screech.',
+    params: { ...DEFAULT_EFFECTS, eqMid: -4, eqHigh: -10, eqLow: 1 },
+  },
+  {
+    id: 'tame',
+    label: 'TAME',
+    help: 'De-buzz plus gentle compression, evening out tracks that lurch.',
+    params: { ...DEFAULT_EFFECTS, eqMid: -4, eqHigh: -5, compThreshold: -18, compRatio: 3 },
+  },
+];
 
 export function effectsAreNeutral(p: EffectParams): boolean {
   return (
@@ -52,6 +93,7 @@ interface AudioNodes {
   wetGain:    GainNode;
   reverbOut:  GainNode;
   masterGain: GainNode;
+  limiter:    DynamicsCompressorNode;
 }
 
 function applyToNodes(nodes: AudioNodes, p: EffectParams): void {
@@ -80,10 +122,13 @@ function buildEffectChain(
   eqLow.frequency.value = 200;
   eqLow.gain.value = p.eqLow;
 
+  // Centred at 3.2 kHz rather than a generic 1.5 kHz: that is where measuring
+  // generated tracks found the sustained resonance that reads as harsh, and
+  // it is also where human hearing is most sensitive.
   const eqMid = ctx.createBiquadFilter();
   eqMid.type = 'peaking';
-  eqMid.frequency.value = 1500;
-  eqMid.Q.value = 1.0;
+  eqMid.frequency.value = 3200;
+  eqMid.Q.value = 1.2;
   eqMid.gain.value = p.eqMid;
 
   const eqHigh = ctx.createBiquadFilter();
@@ -110,7 +155,19 @@ function buildEffectChain(
   const masterGain = ctx.createGain();
   masterGain.gain.value = p.gain;
 
-  // Wire: eqLow → eqMid → eqHigh → compressor → dry/wet split → reverbOut → masterGain
+  // Always-on safety limiter, last in the chain and deliberately not exposed
+  // as a parameter. The model peak-normalises to -1 dBFS, which is already
+  // close to full scale, and a boosted EQ band, a gain above unity or a wet
+  // reverb tail on top of that clips hard and painfully. A hard knee at -3 dB
+  // only engages in the last few dB, so ordinary material passes untouched.
+  const limiter = ctx.createDynamicsCompressor();
+  limiter.threshold.value = -3;
+  limiter.knee.value      = 0;
+  limiter.ratio.value     = 20;
+  limiter.attack.value    = 0.001;
+  limiter.release.value   = 0.1;
+
+  // Wire: eqLow → eqMid → eqHigh → compressor → dry/wet split → reverbOut → masterGain → limiter
   eqLow.connect(eqMid);
   eqMid.connect(eqHigh);
   eqHigh.connect(compressor);
@@ -120,11 +177,12 @@ function buildEffectChain(
   convolver.connect(wetGain);
   wetGain.connect(reverbOut);
   reverbOut.connect(masterGain);
+  masterGain.connect(limiter);
 
   return {
     input:  eqLow,
-    output: masterGain,
-    nodes:  { eqLow, eqMid, eqHigh, compressor, dryGain, convolver, wetGain, reverbOut, masterGain },
+    output: limiter,
+    nodes:  { eqLow, eqMid, eqHigh, compressor, dryGain, convolver, wetGain, reverbOut, masterGain, limiter },
   };
 }
 
@@ -139,6 +197,10 @@ export function useAudioEffects(audioRef: RefObject<HTMLAudioElement>) {
   const [isRendering,      setIsRendering]      = useState(false);
   // False if Web Audio setup failed — effects UI disables, generation/playback unaffected.
   const [effectsAvailable, setEffectsAvailable] = useState(true);
+  // Derived from the track itself once it has been analysed; null until then,
+  // and also null when the track measures inside its style's targets.
+  const [autoPreset,       setAutoPreset]       = useState<EffectPreset | null>(null);
+  const [isAnalysing,      setIsAnalysing]      = useState(false);
 
   // Keep a ref in sync so async callbacks always read the latest params.
   const paramsRef = useRef<EffectParams>(DEFAULT_EFFECTS);
@@ -200,6 +262,77 @@ export function useAudioEffects(audioRef: RefObject<HTMLAudioElement>) {
     if (nodesRef.current) applyToNodes(nodesRef.current, DEFAULT_EFFECTS);
   }, []);
 
+  // AUTO first when the track earned one, so it reads as the default choice.
+  const presets: EffectPreset[] = autoPreset ? [autoPreset, ...EFFECT_PRESETS] : EFFECT_PRESETS;
+  const presetsRef = useRef<EffectPreset[]>(presets);
+  presetsRef.current = presets;
+
+  /** Apply a named preset in one go. */
+  const applyPreset = useCallback((presetId: string) => {
+    const preset = presetsRef.current.find(p => p.id === presetId);
+    if (!preset) return;
+    const next = { ...preset.params };
+    paramsRef.current = next;
+    setParams(next);
+    if (nodesRef.current) applyToNodes(nodesRef.current, next);
+  }, []);
+
+  /** Which preset the current settings correspond to, or null if hand-tuned. */
+  const activePreset = presets.find(p =>
+    (Object.keys(p.params) as (keyof EffectParams)[])
+      .every(k => p.params[k] === params[k]))?.id ?? null;
+
+  /**
+   * Measure a finished track and, if it sits over what its style should carry
+   * up top, build an AUTO preset from the difference and switch to it.
+   *
+   * Applied only while the settings are still untouched: if the listener has
+   * already moved something, the analysis lands as an offered button rather
+   * than overriding their choice. Analysis failure is silent — the fixed
+   * presets remain, which is the behaviour without this.
+   */
+  const analyseTrack = useCallback(async (jobId: string, prompt?: string | null) => {
+    setAutoPreset(null);
+    setIsAnalysing(true);
+    let ctx: AudioContext | null = null;
+    try {
+      const res = await apiFetch(audioUrl(jobId), { credentials: 'include' });
+      if (!res.ok) return;
+      ctx = new AudioContext();
+      const buffer = await ctx.decodeAudioData(await res.arrayBuffer());
+
+      const bands = analyseSpectrum(buffer);
+      if (!bands) return;
+
+      const target = targetForPrompt(prompt);
+      const auto   = autoEqFor(bands, target);
+      if (!auto.eqMid && !auto.eqHigh) return;   // already inside target — RAW is right
+
+      const preset: EffectPreset = {
+        id:     'auto',
+        label:  'AUTO',
+        help:   `${auto.reason} Cutting ${[
+          auto.eqHigh && `${auto.eqHigh}dB up top`,
+          auto.eqMid  && `${auto.eqMid}dB at 3k`,
+        ].filter(Boolean).join(' and ')}.`,
+        params: { ...DEFAULT_EFFECTS, eqMid: auto.eqMid, eqHigh: auto.eqHigh },
+      };
+      setAutoPreset(preset);
+
+      if (effectsAreNeutral(paramsRef.current)) {
+        const next = { ...preset.params };
+        paramsRef.current = next;
+        setParams(next);
+        if (nodesRef.current) applyToNodes(nodesRef.current, next);
+      }
+    } catch (err) {
+      console.warn('[useAudioEffects] track analysis failed — auto EQ unavailable:', err);
+    } finally {
+      ctx?.close().catch(() => {});
+      setIsAnalysing(false);
+    }
+  }, []);
+
   /**
    * Fetch the source audio, run it through an OfflineAudioContext with the
    * current effect settings, encode to WAV, then either trigger a direct
@@ -215,7 +348,7 @@ export function useAudioEffects(audioRef: RefObject<HTMLAudioElement>) {
     setIsRendering(true);
     try {
       // Fetch source audio.
-      const res = await fetch(audioUrl(jobId), { credentials: 'include' });
+      const res = await apiFetch(audioUrl(jobId), { credentials: 'include' });
       if (!res.ok) throw new Error('Failed to fetch audio for rendering.');
       const arrBuf = await res.arrayBuffer();
 
@@ -252,7 +385,7 @@ export function useAudioEffects(audioRef: RefObject<HTMLAudioElement>) {
       }
 
       // Non-WAV: ask the backend to convert the processed WAV.
-      const convRes = await fetch(`${API_BASE}/convert?format=${format}`, {
+      const convRes = await apiFetch(`${API_BASE}/convert?format=${format}`, {
         method:      'POST',
         credentials: 'include',
         headers:     { 'Content-Type': 'audio/wav' },
@@ -273,5 +406,7 @@ export function useAudioEffects(audioRef: RefObject<HTMLAudioElement>) {
     }
   }, []);
 
-  return { params, updateParam, resetEffects, ensureGraph, renderAndDownload, isRendering, effectsAvailable };
+  return { params, updateParam, resetEffects, applyPreset, activePreset, presets,
+           analyseTrack, isAnalysing, ensureGraph, renderAndDownload, isRendering,
+           effectsAvailable };
 }

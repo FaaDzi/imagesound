@@ -10,7 +10,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         className="px-4 md:px-8 py-3 text-[11px] uppercase tracking-widest"
         style={{ borderTop: '1px solid var(--border)', color: 'var(--text-muted)' }}
       >
-        imagesound · browser-based audio synthesis &amp; converter · system: online
+        imagesound · pictures, songs and words into music
       </footer>
     </div>
   );

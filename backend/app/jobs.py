@@ -1,9 +1,10 @@
 """
 jobs.py — in-process job queue with a single background worker thread.
 
-The worker pulls Job items off _queue one at a time, runs the Phase E
-pipeline, moves the output WAV into storage/converted, and writes the
-result back to the database.  Exceptions never crash the worker loop.
+The worker pulls Job items off _queue one at a time, runs the generation
+pipeline (which launches the chosen model's own worker process -- see
+pipeline/runner.py), moves the output WAV into storage/converted, and writes
+the result back to the database.  Exceptions never crash the worker loop.
 """
 
 import json
@@ -14,12 +15,12 @@ import subprocess
 import sys
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
 from app.config import DIR_CONVERTED, DIR_MIDI
-from app.database import get_connection
+from app.database import drop_cancelled, get_connection
 
 log = logging.getLogger(__name__)
 
@@ -53,42 +54,17 @@ def _score_song(wav_path: Path, prompt: str | None) -> tuple[float | None, str |
 
 _queue: queue.Queue = queue.Queue()
 
-_worker_start_time = time.monotonic()
 
-
-def _log_vram_state(job_id: str, label: str) -> None:
-    """Log VRAM usage + CUDA allocator fragmentation signals, and process
-    uptime, around each generation.
-
-    Added to chase a reported "medium model only freezes in the afternoon/
-    evening, never in the morning, even though the app was never restarted"
-    pattern. That symptom is consistent with CUDA allocator fragmentation
-    building up over a long-lived process (many hours of alloc/free cycles
-    since this morning's start) even though jobs.py force-unloads the model
-    and calls empty_cache() after every job -- empty_cache() frees cached
-    blocks back to the driver but does not guarantee zero fragmentation.
-    num_alloc_retries/num_ooms are the allocator's own signal for this: near
-    zero all day = fragmentation isn't the cause; climbing over the day,
-    worse by evening = it is. Comparing this log across a morning run and an
-    evening run (same day, same process, no restart) is the actual test.
-    """
+def _is_cancelled(file_id: str) -> bool:
+    """True if the job was cancelled or its row deleted (e.g. discarded).
+    Called from the runner's watchdog thread, so it opens its own connection
+    -- SQLite connections must stay on the thread that created them."""
+    conn = get_connection()
     try:
-        import torch as _torch
-        if not _torch.cuda.is_available():
-            return
-        alloc = _torch.cuda.memory_allocated(0) / 1024 ** 3
-        resv = _torch.cuda.memory_reserved(0) / 1024 ** 3
-        stats = _torch.cuda.memory_stats(0)
-        retries = stats.get("num_alloc_retries", 0)
-        ooms = stats.get("num_ooms", 0)
-        uptime_hours = (time.monotonic() - _worker_start_time) / 3600
-        log.info(
-            "[worker] job %s %s VRAM: alloc=%.2fGB reserved=%.2fGB "
-            "alloc_retries=%d ooms=%d process_uptime=%.1fh",
-            job_id, label, alloc, resv, retries, ooms, uptime_hours,
-        )
-    except Exception:
-        log.exception("[worker] job %s %s VRAM logging failed", job_id, label)
+        row = conn.execute("SELECT job_status FROM files WHERE id=?", (file_id,)).fetchone()
+        return row is None or row["job_status"] == "cancelled"
+    finally:
+        conn.close()
 
 
 @dataclass
@@ -98,12 +74,11 @@ class Job:
     source: str      # absolute image/wav path (image/midi/audio jobs) or text prompt (text jobs)
     duration: int
     prompt: str | None = None          # pre-computed prompt; if set for image jobs, skips Gemini
-    model: str = "medium"              # MusicGen variant: "medium" | "small" | "melody"
-    arc_preset: str = "steady"         # named energy arc (overridden by arc_segments when set)
-    arc_segments: list[int] | None = None  # custom per-chunk intensities 0-100; takes priority
+    model: str = ""                    # model id from pipeline/models.json (unused by midi jobs)
+    reference_mode: str | None = None  # audio jobs: how `source` conditions the model ("cover" | "style" ...)
+    options: dict = field(default_factory=dict)  # per-model options, already validated against the manifest
     source_file_id: str | None = None  # for MIDI/audio jobs: the entry this was derived from
-    melody_source: str | None = None   # absolute wav path for melody-conditioned ("audio") jobs
-    filter_mode: str = "filtered"      # "raw" | "filtered" — postfilter applied server-side after generation
+    lyrics: str | None = None          # sung when options["vocals"] == "lyrics"; None = drafted
 
 
 def enqueue(job: Job) -> None:
@@ -133,6 +108,7 @@ def get_queue_depth() -> int:
 # queue silently.
 _active_lock = threading.Lock()
 _active = False
+_active_job_id: "str | None" = None  # which job the worker is running, for the admin's "stop it"
 
 
 def is_active() -> bool:
@@ -141,10 +117,17 @@ def is_active() -> bool:
         return _active
 
 
-def _set_active(value: bool) -> None:
-    global _active
+def _set_active(value: bool, job_id: "str | None" = None) -> None:
+    global _active, _active_job_id
     with _active_lock:
         _active = value
+        _active_job_id = job_id if value else None
+
+
+def active_job_id() -> "str | None":
+    """The file id of the job the worker is running right now, if any."""
+    with _active_lock:
+        return _active_job_id
 
 
 def has_work_in_progress() -> bool:
@@ -152,16 +135,22 @@ def has_work_in_progress() -> bool:
     return is_active() or get_queue_depth() > 0
 
 
-# In-memory generation-progress store — no DB writes, since audiocraft's
-# per-token callback can fire many times a second and this is purely
+# In-memory generation-progress store — no DB writes, since a model's
+# progress callback can fire many times a second and this is purely
 # ephemeral, poll-friendly state (never needed after a job finishes).
 _progress_lock = threading.Lock()
 _progress: dict[str, float] = {}
+# What the job is doing right now, in words ("Separating instruments"), for
+# jobs whose fraction alone would leave the user guessing -- MIDI conversion
+# runs several quite different steps. Absent for plain generation.
+_stage: dict[str, str] = {}
 
 
-def set_progress(file_id: str, fraction: float) -> None:
+def set_progress(file_id: str, fraction: float, stage: "str | None" = None) -> None:
     with _progress_lock:
-        _progress[file_id] = fraction
+        _progress[file_id] = max(0.0, min(1.0, fraction))
+        if stage is not None:
+            _stage[file_id] = stage
 
 
 def get_progress(file_id: str) -> "float | None":
@@ -169,9 +158,15 @@ def get_progress(file_id: str) -> "float | None":
         return _progress.get(file_id)
 
 
+def get_stage(file_id: str) -> "str | None":
+    with _progress_lock:
+        return _stage.get(file_id)
+
+
 def clear_progress(file_id: str) -> None:
     with _progress_lock:
         _progress.pop(file_id, None)
+        _stage.pop(file_id, None)
 
 
 def _run_worker() -> None:
@@ -181,19 +176,18 @@ def _run_worker() -> None:
     to the next job.
 
     Status transitions (normal):
-      queued → loading_model → processing → done  (model was unloaded before job)
-      queued → processing    → done               (model was already in VRAM)
+      queued → processing → loading_model → processing → done
+      (the first 'processing' covers the Gemini image->prompt step; the
+       model's worker process then reports loading_model and processing)
 
     Cancel transitions:
       queued     → cancelled  (worker skips immediately on dequeue)
-      processing → cancelled  (worker discards wav + DB row after generation finishes)
+      processing → cancelled  (the runner kills the model's worker process
+                               within ~1s; the DB row is then discarded)
     """
-    from pipeline.generate_song import (
-        generate_song_from_audio_melody,
-        generate_song_from_image,
-        generate_song_from_text,
-        get_model_manager,
-    )
+    from pipeline.generate_song import generate_song
+    from pipeline.models import ModelError, get_model
+    from pipeline.runner import WorkerCancelled
 
     log.info("[worker] Worker thread started.")
 
@@ -203,7 +197,7 @@ def _run_worker() -> None:
         log.info("[worker] Picked up job %s (%s, %ds) — queue depth now %d",
                  job.file_id, job.input_type, job.duration, _queue.qsize())
         conn = get_connection()
-        _set_active(True)
+        _set_active(True, job.file_id)
 
         try:
             # --- Pre-start cancellation check ---
@@ -215,7 +209,7 @@ def _run_worker() -> None:
                 log.info("[jobs] Job %s cancelled before start — skipping", job.file_id)
                 continue  # finally still runs: conn.close() + task_done()
 
-            # --- MIDI conversion (Basic Pitch) — no GPU/MusicGen needed ---
+            # --- MIDI conversion (Basic Pitch) — no generation model needed ---
             if job.input_type == "midi":
                 conn.execute(
                     "UPDATE files SET job_status='processing' WHERE id=?", (job.file_id,)
@@ -223,7 +217,11 @@ def _run_worker() -> None:
                 conn.commit()
                 from pipeline.midi_convert import convert_to_midi as _midi_convert
                 midi_dest = DIR_MIDI / f"{job.file_id}.mid"
-                note_count = _midi_convert(Path(job.source), midi_dest)
+                set_progress(job.file_id, 0.0, "Starting")
+                note_count = _midi_convert(
+                    Path(job.source), midi_dest,
+                    on_progress=lambda frac, stage: set_progress(job.file_id, frac, stage),
+                )
                 conn.execute(
                     "UPDATE files SET job_status='done', converted_key=? WHERE id=?",
                     (midi_dest.name, job.file_id),
@@ -233,92 +231,66 @@ def _run_worker() -> None:
                          job.file_id, midi_dest.name, note_count)
                 continue  # finally executes (conn.close + task_done), then next job
 
-            manager = get_model_manager()
-            _log_vram_state(job.file_id, "pre-gen")
-
-            # If model isn't resident, show loading_model so the frontend can
-            # display "warming up" instead of looking frozen.
-            initial_status = "loading_model" if not manager.is_loaded else "processing"
-            conn.execute(
-                "UPDATE files SET job_status=? WHERE id=?",
-                (initial_status, job.file_id),
-            )
+            conn.execute("UPDATE files SET job_status='processing' WHERE id=?", (job.file_id,))
             conn.commit()
 
-            # Called from inside the generation lock once the model is loaded
-            # but before inference starts — transitions loading_model → processing.
-            def _on_model_ready():
-                log.info("[worker] job %s on_model_ready fired — setting status='processing'", job.file_id)
+            # The model's worker process reports loading_model, then
+            # processing, as it starts up -- mirror that into the DB so the
+            # frontend can say "warming up" instead of looking frozen.
+            def _on_status(state: str) -> None:
                 try:
-                    conn.execute(
-                        "UPDATE files SET job_status='processing' WHERE id=?",
-                        (job.file_id,),
-                    )
+                    conn.execute("UPDATE files SET job_status=? WHERE id=?", (state, job.file_id))
                     conn.commit()
-                    log.info("[worker] job %s status='processing' committed to DB", job.file_id)
                 except Exception:
-                    log.exception("[jobs] Could not transition %s to 'processing'", job.file_id)
+                    log.exception("[jobs] Could not set status %r for %s", state, job.file_id)
 
-            # Only pass the callback when we actually entered loading_model; if
-            # the model was already loaded the status is already 'processing'.
-            on_ready = _on_model_ready if initial_status == "loading_model" else None
-
-            # Fired repeatedly (once per MusicGen autoregressive step) during
-            # generation — passed unconditionally, regardless of whether the
-            # model needed to load first.
             def _on_progress(frac: float) -> None:
                 set_progress(job.file_id, frac)
 
-            log.info("[worker] job %s — calling generation function (type=%s, duration=%ds, model=%s)",
+            log.info("[worker] job %s — generating (type=%s, duration=%ds, model=%s)",
                      job.file_id, job.input_type, job.duration, job.model)
-            if job.input_type == "image":
-                if job.prompt:
-                    # Prompt already computed by /describe — skip Gemini, run MusicGen only.
-                    wav_path = generate_song_from_text(
-                        job.prompt, duration=job.duration, model=job.model,
-                        on_model_ready=on_ready, arc_preset=job.arc_preset,
-                        arc_segments=job.arc_segments, filter_mode=job.filter_mode,
-                        on_progress=_on_progress,
-                    )
-                    prompt_used = job.prompt
-                else:
-                    wav_path, prompt_used = generate_song_from_image(
-                        Path(job.source), duration=job.duration, model=job.model,
-                        on_model_ready=on_ready, arc_preset=job.arc_preset,
-                        arc_segments=job.arc_segments, filter_mode=job.filter_mode,
-                        on_progress=_on_progress,
-                    )
-            elif job.input_type == "audio":
-                wav_path = generate_song_from_audio_melody(
-                    job.melody_source, job.prompt, duration=job.duration,
-                    on_model_ready=on_ready, arc_preset=job.arc_preset,
-                    arc_segments=job.arc_segments, filter_mode=job.filter_mode,
-                    on_progress=_on_progress,
-                )
-                prompt_used = job.prompt
-            else:
-                wav_path = generate_song_from_text(
-                    job.source, duration=job.duration, model=job.model,
-                    on_model_ready=on_ready, arc_preset=job.arc_preset,
-                    arc_segments=job.arc_segments, filter_mode=job.filter_mode,
-                    on_progress=_on_progress,
-                )
-                prompt_used = job.source
 
-            log.info("[worker] job %s — generation returned: wav=%s", job.file_id, wav_path.name if wav_path else None)
-            _log_vram_state(job.file_id, "post-gen")
+            # What the job's `source` means depends on its type: an image to
+            # describe, a reference song to condition on, or the prompt itself.
+            gen_kwargs: dict = {}
+            if job.input_type == "image":
+                gen_kwargs = {"image_path": job.source, "prompt": job.prompt}
+            elif job.input_type == "audio":
+                gen_kwargs = {"prompt": job.prompt, "reference_path": job.source,
+                              "reference_mode": job.reference_mode}
+            else:
+                gen_kwargs = {"prompt": job.source}
+
+            try:
+                wav_path, prompt_used = generate_song(
+                    model_id=job.model, duration=job.duration, options=job.options,
+                    lyrics=job.lyrics,
+                    on_status=_on_status, on_progress=_on_progress,
+                    cancel_check=lambda: _is_cancelled(job.file_id),
+                    **gen_kwargs,
+                )
+            except WorkerCancelled:
+                # The runner already killed the model process. Same cleanup as
+                # a cancel that lands after generation finishes (below).
+                drop_cancelled(conn, job.file_id)
+                log.info("[jobs] Job %s cancelled mid-flight — worker killed", job.file_id)
+                continue
+            except ModelError as e:
+                log.error("[jobs] Job %s rejected: %s", job.file_id, e)
+                raise
+
+            log.info("[worker] job %s — generation returned: wav=%s", job.file_id, wav_path.name)
 
             # --- Post-generation cancellation check ---
-            # /cancel may have arrived while MusicGen was running (can't interrupt it).
-            # The WAV exists in pipeline/output/ — discard it and the DB row entirely.
+            # /cancel may have landed in the instant between the last watchdog
+            # poll and the worker finishing. Discard the WAV and the DB row.
             post = conn.execute(
                 "SELECT job_status FROM files WHERE id=?", (job.file_id,)
             ).fetchone()
             if post is None or post["job_status"] == "cancelled":
                 wav_path.unlink(missing_ok=True)
                 if post is not None:
-                    conn.execute("DELETE FROM files WHERE id=?", (job.file_id,))
-                    conn.commit()
+                    drop_cancelled(conn, job.file_id)
                 log.info("[jobs] Job %s cancelled mid-flight — output discarded", job.file_id)
                 continue  # finally still runs
 
@@ -327,14 +299,17 @@ def _run_worker() -> None:
             shutil.move(str(wav_path), str(dest))
             converted_key = dest.name
 
-            fad_score, fad_verdict = _score_song(dest, prompt_used)
+            fad_score, fad_verdict = (
+                _score_song(dest, prompt_used) if get_model(job.model).quality_scoring else (None, None)
+            )
 
             conn.execute(
                 """UPDATE files
                       SET job_status='done', converted_key=?, prompt=?, duration=?,
-                          fad_score=?, fad_verdict=?
+                          fad_score=?, fad_verdict=?, model_id=?
                     WHERE id=?""",
-                (converted_key, prompt_used, float(job.duration), fad_score, fad_verdict, job.file_id),
+                (converted_key, prompt_used, float(job.duration), fad_score, fad_verdict,
+                 job.model, job.file_id),
             )
             conn.commit()
             log.info("[jobs] Job %s done -> %s (fad_verdict=%s)", job.file_id, converted_key, fad_verdict)
@@ -362,18 +337,14 @@ def _run_heartbeat() -> None:
     Daemon thread: log a liveness line every 30s.
 
     If the backend process is running but /health stops responding, heartbeats
-    will reveal whether the event loop is live (heartbeats continue) or the
-    whole process is frozen (heartbeats stop).  If the idle-checker deadlocks
-    but the process is still alive, heartbeats keep printing while [unload]
-    logs go silent at the deadlock point — those two facts together name the culprit.
+    reveal whether the process is frozen (heartbeats stop) or just the request
+    path is (heartbeats continue).
     """
-    from pipeline.generate_song import get_model_manager
-
     while True:
         time.sleep(30)
         try:
-            loaded = get_model_manager().is_loaded
-            log.info("[heartbeat] backend alive, model_loaded=%s", loaded)
+            log.info("[heartbeat] backend alive, generating=%s, queue_depth=%d",
+                     is_active(), get_queue_depth())
         except Exception:
             log.exception("[heartbeat] Unexpected error")
 

@@ -9,10 +9,11 @@ GIFs are served as a static PNG frame (middle frame) for consistent cover render
 import io
 import mimetypes
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, Response
 from PIL import Image
 
+from app.access import owner_filter
 from app.config import DIR_ORIGINALS
 from app.database import get_connection
 
@@ -27,11 +28,12 @@ _EXT_MIME = {
 
 
 @router.get("/image/{file_id}")
-def get_image(file_id: str):
+def get_image(file_id: str, request: Request):
+    clause, params = owner_filter(request)
     with get_connection() as conn:
         row = conn.execute(
-            "SELECT input_type, original_key FROM files WHERE id=?",
-            (file_id,),
+            "SELECT input_type, original_key FROM files WHERE id=?" + clause,
+            (file_id, *params),
         ).fetchone()
 
     if row is None:

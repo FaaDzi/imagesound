@@ -68,7 +68,7 @@ export default defineConfig(() => {
       // entirely), backend/app/config.py, run.py, etc. This denylist blocks
       // Vite's static file server from ever serving those paths, regardless
       // of tunnel vs. local-only use (the same request works on plain
-      // localhost:3000 today, tunneling just makes it internet-reachable).
+      // localhost:4000 today, tunneling just makes it internet-reachable).
       fs: {
         deny: [
           // Vite's own defaults -- MUST stay here since setting `deny` at all

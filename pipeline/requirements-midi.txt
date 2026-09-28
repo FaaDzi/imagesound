@@ -1,0 +1,23 @@
+# Optional extras for audio-to-MIDI conversion, installed into the MAIN .venv.
+# Everything else in the app works without these.
+#
+#   pip install -r pipeline/requirements-midi.txt
+#
+# Demucs splits the song into stems and Basic Pitch transcribes each one.
+# Both run on CPU here (separation is deliberately kept off the GPU so it never
+# competes with a generation model for VRAM), so plain CPU torch wheels are
+# enough -- there is no need for the CUDA build on account of this feature.
+#
+# Both download model weights on first use. pipeline/midi_convert.py sets
+# HF_HOME and TORCH_HOME to project-local folders at import time, so the
+# weights (~150 MB) land in .hf-cache/ and .torch-cache/ rather than on the
+# system drive.
+#
+# basic-pitch is installed with its ONNX runtime rather than the default
+# TensorFlow backend: same model, ~15 MB instead of ~500 MB, and it does not
+# drag in a numpy version that conflicts with the rest of the environment.
+
+torch>=2.1.0
+torchaudio>=2.1.0
+demucs>=4.0.0
+basic-pitch[onnx]>=0.4.0

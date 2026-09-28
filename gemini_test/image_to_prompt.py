@@ -1,7 +1,7 @@
 """
-image_to_prompt.py — Phase D  (isolated, no backend/MusicGen integration)
+image_to_prompt.py — Phase D  (isolated, no backend/generation-model integration)
 Takes an image, asks Gemini to describe what it should SOUND like,
-and prints a MusicGen-ready music prompt.
+and prints a text-to-music prompt.
 
 Usage:
   python image_to_prompt.py                    # auto-generates 3 synthetic test images
@@ -34,7 +34,7 @@ MODEL = "gemini-2.5-flash"
 
 # ── Prompt engineering ────────────────────────────────────────────────────────
 # Explicitly forbid visual language; require pure musical language.
-# MusicGen performs best on short, focused, instrument/mood-specific prompts.
+# Music models generally do best with short, focused, instrument/mood-specific prompts.
 
 MUSIC_DIRECTION_INSTRUCTION = """\
 You are a music director who translates the emotional feeling of images into music.
@@ -58,7 +58,7 @@ Examples of good output:
 # ── Core function ─────────────────────────────────────────────────────────────
 
 def image_to_music_prompt(image_path: Path) -> str:
-    """Send an image to Gemini and return a MusicGen-ready text prompt."""
+    """Send an image to Gemini and return a text-to-music prompt."""
     img = Image.open(image_path)
 
     # Convert to bytes — use JPEG for photos (smaller), PNG for synthetic images
@@ -187,7 +187,7 @@ def main() -> None:
             print(f"  ERROR : {exc}")
 
     print("\n" + "=" * 64)
-    print("These prompts can be passed directly to MusicGen.generate().")
+    print("These prompts can be passed directly to a text-to-music model.")
     print("For best results, test with real photographs.")
 
 
